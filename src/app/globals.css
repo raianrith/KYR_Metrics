@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Tusker Grotesk";
+  font-style: normal;
+  font-weight: 300;
+  src: url("https://65360.fs1.hubspotusercontent-na1.net/hubfs/65360/2024-New-Site/Fonts/Tusker%20Grotesk/TuskerGrotesk-3700Bold.otf")
+    format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Tusker Grotesk";
+  font-style: normal;
+  font-weight: 400;
+  src: url("https://65360.fs1.hubspotusercontent-na1.net/hubfs/65360/2024-New-Site/Fonts/Tusker%20Grotesk/TuskerGrotesk-4700Bold.otf")
+    format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Tusker Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  src: url("https://65360.fs1.hubspotusercontent-na1.net/hubfs/65360/2024-New-Site/Fonts/Tusker%20Grotesk/TuskerGrotesk-7700Bold.otf")
+    format("opentype");
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "normalidad-text", "Jost", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Tusker Grotesk", "Jost", ui-sans-serif, sans-serif;
+  --color-wg-suede: #112721;
+  --color-wg-suede-light: #1a3d32;
+  --color-wg-orange: #ff6700;
+  --color-wg-orange-dark: #e55a00;
+  --color-wg-gold: #a86a40;
+  --color-wg-gold-bright: #cca92c;
+  --color-wg-light: #f4f4f4;
+  --color-wg-muted: #a0a9a6;
+  --color-wg-charcoal: #272727;
+}
+
+@layer base {
+  body {
+    @apply bg-wg-light text-wg-charcoal antialiased;
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+  }
+
+  .font-body {
+    font-family: var(--font-sans);
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .wg-card {
+    @apply bg-white border border-black/5 shadow-sm;
+  }
+
+  .wg-header {
+    background: #112721;
+  }
+
+  .wg-btn-primary {
+    background: linear-gradient(180deg, #ff6700 50%, #112721 0%);
+    background-size: 100% 204%;
+    background-position-y: 1%;
+    transition: background-position-y 0.25s ease, color 0.25s ease;
+  }
+
+  .wg-btn-primary:hover {
+    background-position-y: 99%;
+    color: #fff;
+  }
+}
