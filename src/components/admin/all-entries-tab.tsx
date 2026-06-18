@@ -4,7 +4,7 @@ import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
 import { formatQuarterLabel, getQuarter } from "@/lib/periods";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatValue, statusColor, statusLabel, titleCase, fieldLabelClass } from "@/lib/utils";
+import { formatValue, statusColor, statusLabel, titleCase } from "@/lib/utils";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -83,22 +83,22 @@ export function AllEntriesTab({
           <table className="w-full text-sm font-body normal-case min-w-[700px]">
             <thead>
               <tr className="border-b border-black/10 bg-wg-light">
-                <th className={`text-left px-3 py-2 ${fieldLabelClass}`}>
+                <th className="text-left px-3 py-2 text-[11px] font-medium text-wg-muted tracking-wide">
                   Metric
                 </th>
-                <th className={`text-left px-3 py-2 ${fieldLabelClass}`}>
+                <th className="text-left px-3 py-2 text-[11px] font-medium text-wg-muted tracking-wide">
                   Period
                 </th>
-                <th className={`text-left px-3 py-2 ${fieldLabelClass}`}>
+                <th className="text-left px-3 py-2 text-[11px] font-medium text-wg-muted tracking-wide">
                   Actual
                 </th>
-                <th className={`text-left px-3 py-2 ${fieldLabelClass}`}>
+                <th className="text-left px-3 py-2 text-[11px] font-medium text-wg-muted tracking-wide">
                   Target
                 </th>
-                <th className={`text-left px-3 py-2 ${fieldLabelClass}`}>
+                <th className="text-left px-3 py-2 text-[11px] font-medium text-wg-muted tracking-wide">
                   Status
                 </th>
-                <th className={`text-left px-3 py-2 ${fieldLabelClass} hidden md:table-cell`}>
+                <th className="text-left px-3 py-2 text-[11px] font-medium text-wg-muted tracking-wide hidden md:table-cell">
                   Entered By
                 </th>
               </tr>
@@ -114,10 +114,13 @@ export function AllEntriesTab({
                     className="border-b border-black/5 hover:bg-wg-light/50"
                   >
                     <td className="px-3 py-2.5">
-                      <p className="font-medium text-wg-charcoal">
-                        {entry.metric.metric_name}
-                      </p>
-                      <p className="text-xs text-wg-muted">{titleCase(entry.metric.team)}</p>
+                    <p className="font-medium text-wg-charcoal">
+                      {titleCase(entry.metric.metric_name)}
+                    </p>
+                    <p className="text-xs text-wg-muted">
+                      {titleCase(entry.metric.team)} · {titleCase(entry.metric.role)}
+                      {entry.metric.owner ? ` · ${titleCase(entry.metric.owner)}` : ""}
+                    </p>
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-wg-charcoal">
                       <span className="text-[10px] font-semibold text-wg-orange mr-2">

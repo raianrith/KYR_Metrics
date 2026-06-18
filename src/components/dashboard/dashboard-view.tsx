@@ -1,35 +1,33 @@
 "use client";
 
-import { MetricRow } from "@/components/dashboard/metric-row";
 import { PeriodSelector, type PeriodView } from "@/components/dashboard/period-selector";
-import { StatusSummary, TeamOverviewChart } from "@/components/dashboard/charts";
+import { ChartLegend, EmployeeOverviewChart, StatusSummary, TeamOverviewChart } from "@/components/dashboard/charts";
+import {
+  filterMetricsByScope,
+  MetricsFilterBar,
+  type MetricsCadenceFilter,
+  type MetricsGroupBy,
+} from "@/components/dashboard/metrics-filter-bar";
+import { MetricsList } from "@/components/dashboard/metrics-list";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  applyPeriodToMetrics,
-  formatQuarterWithMonths,
+  applyPeriodFilterToMetrics,
+  buildPeriodFilter,
+  getChartEntriesForFilter,
   getCurrentQuarter,
-  getEntriesForYear,
-  getPeriodSnapshot,
-  quarterMonthRange,
+  getPeriodLabel,
+  getQuarterBounds,
 } from "@/lib/periods";
-import {
-  computeStats,
-  groupByDepartmentOwner,
-  groupByOwner,
-  groupByTeam,
-  groupByTier,
-} from "@/lib/metrics";
+import { computeStats, filterMetricsByCadence } from "@/lib/metrics";
 import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
-import { formatNumber, titleCase } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
 import {
   AlertTriangle,
   BarChart3,
   CheckCircle2,
   Clock,
   Target,
-  Users,
   XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -40,36 +38,61 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) {
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [quarter, setQuarter] = useState<PeriodView>(getCurrentQuarter());
+  const initialYear = new Date().getFullYear();
+  const initialQuarter = getCurrentQuarter();
+  const initialBounds = getQuarterBounds(initialYear, initialQuarter);
 
-  const periodLabel =
-    quarter === "full"
-      ? `${year} Full Year (Jan – Dec)`
-      : formatQuarterWithMonths(year, quarter);
+  const [year, setYear] = useState(initialYear);
+  const [quarter, setQuarter] = useState<PeriodView>(initialQuarter);
+  const [customStart, setCustomStart] = useState(initialBounds.start);
+  const [customEnd, setCustomEnd] = useState(initialBounds.end);
+  const [groupBy, setGroupBy] = useState<MetricsGroupBy>("team");
+  const [scope, setScope] = useState("all");
+  const [cadenceFilter, setCadenceFilter] = useState<MetricsCadenceFilter>("all");
+
+  const periodFilter = useMemo(
+    () => buildPeriodFilter(year, quarter, customStart, customEnd),
+    [year, quarter, customStart, customEnd]
+  );
+
+  const periodLabel = getPeriodLabel(periodFilter);
 
   const periodMetrics = useMemo(
-    () => applyPeriodToMetrics(metrics, entriesByMetric, year, quarter),
-    [metrics, entriesByMetric, year, quarter]
+    () => applyPeriodFilterToMetrics(metrics, entriesByMetric, periodFilter),
+    [metrics, entriesByMetric, periodFilter]
   );
 
   const stats = computeStats(periodMetrics);
 
-  const byTeam = groupByTeam(periodMetrics);
-  const byOwner = groupByOwner(periodMetrics);
-  const byDeptOwner = groupByDepartmentOwner(periodMetrics);
-  const byTier = groupByTier(periodMetrics);
+  const filteredMetrics = useMemo(() => {
+    const scoped = filterMetricsByScope(periodMetrics, groupBy, scope);
+    return filterMetricsByCadence(scoped, cadenceFilter);
+  }, [periodMetrics, groupBy, scope, cadenceFilter]);
 
-  const yearEntriesByMetric = useMemo(() => {
+  const handleGroupByChange = (value: MetricsGroupBy) => {
+    setGroupBy(value);
+    setScope("all");
+  };
+
+  const chartEntriesByMetric = useMemo(() => {
     const result: Record<string, MetricEntry[]> = {};
     for (const m of metrics) {
-      result[m.metric_id] = getEntriesForYear(
+      result[m.metric_id] = getChartEntriesForFilter(
         entriesByMetric[m.metric_id] ?? [],
-        year
+        periodFilter
       );
     }
     return result;
-  }, [metrics, entriesByMetric, year]);
+  }, [metrics, entriesByMetric, periodFilter]);
+
+  const handleYearChange = (y: number) => {
+    setYear(y);
+    if (quarter !== "custom" && quarter !== "full") {
+      const bounds = getQuarterBounds(y, quarter);
+      setCustomStart(bounds.start);
+      setCustomEnd(bounds.end);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -78,28 +101,50 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
           Performance Dashboard
         </h2>
         <p className="text-wg-muted mt-2 font-body normal-case tracking-normal">
-          Track Know Your Role metrics by quarter and year. Click any metric to
-          view its trend chart.
+          Track Know Your Role metrics by period. Weekly and monthly metrics show
+          period averages; quarterly and yearly metrics show a single value for
+          the selected timeframe.
         </p>
       </div>
 
       <PeriodSelector
         year={year}
         quarter={quarter}
-        onYearChange={setYear}
+        customStart={customStart}
+        customEnd={customEnd}
+        onYearChange={handleYearChange}
         onQuarterChange={setQuarter}
+        onCustomRangeChange={(start, end) => {
+          setCustomStart(start);
+          setCustomEnd(end);
+        }}
         entriesByMetric={entriesByMetric}
       />
 
-      <p className="text-sm text-wg-muted font-body normal-case -mt-4">
-        Showing results for <strong className="text-wg-charcoal">{periodLabel}</strong>
-        {quarter !== "full" && (
-          <span>
-            {" "}
-            · Monthly metrics average entered months in {quarterMonthRange(quarter as 1 | 2 | 3 | 4)}
-          </span>
-        )}
-      </p>
+      <div className="rounded-sm border border-black/5 bg-wg-light/40 px-4 py-3 -mt-4 space-y-2">
+        <p className="text-sm text-wg-charcoal font-body normal-case">
+          Showing results for{" "}
+          <strong className="text-wg-suede">{periodLabel}</strong>
+        </p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs text-wg-muted font-body normal-case">
+          <p>
+            <span className="font-medium text-wg-charcoal">Weekly</span> — week
+            average with coverage (e.g. 8/13 weeks)
+          </p>
+          <p>
+            <span className="font-medium text-wg-charcoal">Monthly</span> — month
+            average with coverage (e.g. 2/3 months)
+          </p>
+          <p>
+            <span className="font-medium text-wg-charcoal">Quarterly</span> —
+            one value for the selected quarter
+          </p>
+          <p>
+            <span className="font-medium text-wg-charcoal">Yearly</span> — one
+            value for the calendar year
+          </p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard
@@ -151,20 +196,7 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
           </CardHeader>
           <CardContent>
             <TeamOverviewChart rows={periodMetrics} />
-            <div className="flex items-center justify-center gap-4 mt-4 text-[10px] text-wg-muted font-body normal-case">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-wg-suede" /> Met
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-wg-orange" /> At Risk
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-wg-gold" /> Not Met
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-wg-muted/40" /> Pending
-              </span>
-            </div>
+            <ChartLegend />
           </CardContent>
         </Card>
 
@@ -184,193 +216,40 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
         </Card>
       </div>
 
-      <Tabs defaultValue="team" className="w-full">
-        <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="team">By Team</TabsTrigger>
-          <TabsTrigger value="all">All Metrics</TabsTrigger>
-          <TabsTrigger value="owner">By Owner</TabsTrigger>
-          <TabsTrigger value="supervisor">By Supervisor</TabsTrigger>
-          <TabsTrigger value="tier">By Tier</TabsTrigger>
-        </TabsList>
+      <Card>
+        <CardHeader>
+          <CardTitle>Employee Performance</CardTitle>
+          <CardDescription>
+            Status breakdown by employee · {periodLabel}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EmployeeOverviewChart rows={periodMetrics} />
+          <ChartLegend />
+        </CardContent>
+      </Card>
 
-        <TabsContent value="all">
-          <Card>
-            <CardHeader>
-              <CardTitle>All KYR Metrics</CardTitle>
-              <CardDescription>
-                {metrics.length} metrics · {periodLabel}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {periodMetrics.map((m) => {
-                const snap = getPeriodSnapshot(
-                  entriesByMetric[m.metric_id] ?? [],
-                  m.cadence,
-                  year,
-                  quarter
-                );
-                return (
-                  <MetricRow
-                    key={m.metric_id}
-                    metric={m}
-                    entries={yearEntriesByMetric[m.metric_id] ?? []}
-                    periodLabel={periodLabel}
-                    periodDetail={snap.label}
-                    chartYear={year}
-                  />
-                );
-              })}
-            </CardContent>
-          </Card>
-        </TabsContent>
+      <div className="space-y-4">
+        <MetricsFilterBar
+          groupBy={groupBy}
+          scope={scope}
+          cadence={cadenceFilter}
+          metrics={periodMetrics}
+          onGroupByChange={handleGroupByChange}
+          onScopeChange={setScope}
+          onCadenceChange={setCadenceFilter}
+        />
 
-        <TabsContent value="team">
-          <div className="space-y-4">
-            {byTeam.map(([team, teamMetrics]) => (
-              <Card key={team}>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{titleCase(team)}</CardTitle>
-                  <CardDescription>
-                    {teamMetrics.length} metrics · {periodLabel}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {teamMetrics.map((m) => {
-                    const snap = getPeriodSnapshot(
-                      entriesByMetric[m.metric_id] ?? [],
-                      m.cadence,
-                      year,
-                      quarter
-                    );
-                    return (
-                      <MetricRow
-                        key={m.metric_id}
-                        metric={m}
-                        entries={yearEntriesByMetric[m.metric_id] ?? []}
-                        showTeam={false}
-                        periodLabel={periodLabel}
-                        periodDetail={snap.label}
-                        chartYear={year}
-                      />
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="owner">
-          {byOwner.map(([owner, ownerMetrics]) => (
-            <Card key={owner} className="mb-4">
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-wg-orange" />
-                  <CardTitle className="text-base">{titleCase(owner)}</CardTitle>
-                  <span className="text-xs text-wg-muted ml-auto">
-                    {ownerMetrics.length} metrics
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {ownerMetrics.map((m) => {
-                  const snap = getPeriodSnapshot(
-                    entriesByMetric[m.metric_id] ?? [],
-                    m.cadence,
-                    year,
-                    quarter
-                  );
-                  return (
-                    <MetricRow
-                      key={m.metric_id}
-                      metric={m}
-                      entries={yearEntriesByMetric[m.metric_id] ?? []}
-                      showTeam={false}
-                      periodLabel={periodLabel}
-                      periodDetail={snap.label}
-                      chartYear={year}
-                    />
-                  );
-                })}
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-
-        <TabsContent value="supervisor">
-          {byDeptOwner.map(([supervisor, supMetrics]) => (
-            <Card key={supervisor} className="mb-4">
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-wg-orange" />
-                  <CardTitle className="text-base">
-                    {titleCase(supervisor)}
-                    <span className="text-xs font-normal text-wg-muted ml-2">
-                      Department Owner
-                    </span>
-                  </CardTitle>
-                  <span className="text-xs text-wg-muted ml-auto">
-                    {supMetrics.length} metrics
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {supMetrics.map((m) => {
-                  const snap = getPeriodSnapshot(
-                    entriesByMetric[m.metric_id] ?? [],
-                    m.cadence,
-                    year,
-                    quarter
-                  );
-                  return (
-                    <MetricRow
-                      key={m.metric_id}
-                      metric={m}
-                      entries={yearEntriesByMetric[m.metric_id] ?? []}
-                      periodLabel={periodLabel}
-                      periodDetail={snap.label}
-                      chartYear={year}
-                    />
-                  );
-                })}
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-
-        <TabsContent value="tier">
-          {byTier.map(([tier, tierMetrics]) => (
-            <Card key={tier} className="mb-4">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{tier}</CardTitle>
-                <CardDescription>
-                  {tierMetrics.length} metrics · {periodLabel}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {tierMetrics.map((m) => {
-                  const snap = getPeriodSnapshot(
-                    entriesByMetric[m.metric_id] ?? [],
-                    m.cadence,
-                    year,
-                    quarter
-                  );
-                  return (
-                    <MetricRow
-                      key={m.metric_id}
-                      metric={m}
-                      entries={yearEntriesByMetric[m.metric_id] ?? []}
-                      periodLabel={periodLabel}
-                      periodDetail={snap.label}
-                      chartYear={year}
-                    />
-                  );
-                })}
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-      </Tabs>
+        <MetricsList
+          metrics={filteredMetrics}
+          groupBy={groupBy}
+          scope={scope}
+          periodLabel={periodLabel}
+          periodFilter={periodFilter}
+          entriesByMetric={entriesByMetric}
+          chartEntriesByMetric={chartEntriesByMetric}
+        />
+      </div>
     </div>
   );
 }

@@ -1,9 +1,12 @@
 "use client";
 
 import type { MetricDashboardRow } from "@/lib/types";
-import { titleCase } from "@/lib/utils";
-import { getTeamColor } from "@/lib/metrics";
-import { statusColor, statusLabel } from "@/lib/utils";
+import {
+  buildStatusBreakdown,
+  getTeamColor,
+  type StatusBreakdownRow,
+} from "@/lib/metrics";
+import { statusColor, statusLabel, titleCase } from "@/lib/utils";
 import {
   Bar,
   BarChart,
@@ -14,71 +17,113 @@ import {
   YAxis,
 } from "recharts";
 
+const TICK_STYLE = {
+  fontSize: 10,
+  fill: "#a0a9a6",
+  fontFamily: "normalidad-text, Jost, sans-serif",
+} as const;
+
+function StatusTooltip({
+  active,
+  payload,
+  title,
+}: {
+  active?: boolean;
+  payload?: { payload: StatusBreakdownRow }[];
+  title: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white border border-black/10 rounded-sm shadow-lg p-3 text-sm">
+      <p className="font-semibold text-wg-suede mb-2 text-sm">{titleCase(d.label)}</p>
+      <div className="space-y-1 text-xs font-body normal-case">
+        <p className="text-emerald-700">Met/On Track: {d.met}</p>
+        <p className="text-amber-700">At Risk: {d.atRisk}</p>
+        <p className="text-rose-700">Not Met: {d.notMet}</p>
+        <p className="text-wg-muted">Pending: {d.pending}</p>
+      </div>
+    </div>
+  );
+}
+
+function StatusBreakdownChart({
+  data,
+  minBarWidth = 72,
+  height = 288,
+}: {
+  data: StatusBreakdownRow[];
+  minBarWidth?: number;
+  height?: number;
+}) {
+  const chartWidth = Math.max(600, data.length * minBarWidth);
+
+  return (
+    <div className="overflow-x-auto -mx-1 px-1">
+      <div style={{ width: chartWidth, height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 56 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={TICK_STYLE}
+              interval={0}
+              angle={-35}
+              textAnchor="end"
+              height={56}
+              tickFormatter={(value) => titleCase(String(value))}
+            />
+            <YAxis tick={TICK_STYLE} allowDecimals={false} />
+            <Tooltip content={<StatusTooltip title="" />} />
+            <Bar dataKey="met" stackId="a" fill="#112721" />
+            <Bar dataKey="atRisk" stackId="a" fill="#ff6700" />
+            <Bar dataKey="notMet" stackId="a" fill="#a86a40" />
+            <Bar dataKey="pending" stackId="a" fill="#d4d4d4" radius={[2, 2, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+export function ChartLegend() {
+  return (
+    <div className="flex items-center justify-center gap-4 mt-4 text-[10px] text-wg-muted font-body normal-case flex-wrap">
+      <span className="flex items-center gap-1.5">
+        <span className="w-2.5 h-2.5 rounded-sm bg-wg-suede" /> Met
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="w-2.5 h-2.5 rounded-sm bg-wg-orange" /> At Risk
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="w-2.5 h-2.5 rounded-sm bg-wg-gold" /> Not Met
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="w-2.5 h-2.5 rounded-sm bg-wg-muted/40" /> Pending
+      </span>
+    </div>
+  );
+}
+
 interface TeamOverviewChartProps {
   rows: MetricDashboardRow[];
 }
 
 export function TeamOverviewChart({ rows }: TeamOverviewChartProps) {
-  const teamStats = rows.reduce<
-    Record<string, { met: number; atRisk: number; notMet: number; pending: number }>
-  >((acc, row) => {
-    if (!acc[row.team]) {
-      acc[row.team] = { met: 0, atRisk: 0, notMet: 0, pending: 0 };
-    }
-    const s = row.latest_status;
-    if (s === "met" || s === "on_track") acc[row.team].met++;
-    else if (s === "at_risk") acc[row.team].atRisk++;
-    else if (s === "not_met" || s === "off_track") acc[row.team].notMet++;
-    else acc[row.team].pending++;
-    return acc;
-  }, {});
+  const data = buildStatusBreakdown(rows, (row) => row.team);
+  return <StatusBreakdownChart data={data} minBarWidth={88} />;
+}
 
-  const data = Object.entries(teamStats).map(([team, stats]) => ({
-    team: team.replace(" ", "\n"),
-    teamFull: team,
-    ...stats,
-    total: stats.met + stats.atRisk + stats.notMet + stats.pending,
-  }));
+interface EmployeeOverviewChartProps {
+  rows: MetricDashboardRow[];
+}
 
-  return (
-    <div className="h-72">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
-          <XAxis
-            dataKey="team"
-            tick={{ fontSize: 10, fill: "#a0a9a6", fontFamily: "normalidad-text, Jost, sans-serif" }}
-            interval={0}
-          />
-          <YAxis
-            tick={{ fontSize: 11, fill: "#a0a9a6", fontFamily: "normalidad-text, Jost, sans-serif" }}
-            allowDecimals={false}
-          />
-          <Tooltip
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const d = payload[0].payload;
-              return (
-                <div className="bg-white border border-black/10 rounded-sm shadow-lg p-3 text-sm">
-                  <p className="font-semibold text-wg-suede mb-2 text-sm">{titleCase(d.teamFull)}</p>
-                  <div className="space-y-1 text-xs font-body normal-case">
-                    <p className="text-emerald-700">Met/On Track: {d.met}</p>
-                    <p className="text-amber-700">At Risk: {d.atRisk}</p>
-                    <p className="text-rose-700">Not Met: {d.notMet}</p>
-                    <p className="text-wg-muted">Pending: {d.pending}</p>
-                  </div>
-                </div>
-              );
-            }}
-          />
-          <Bar dataKey="met" stackId="a" fill="#112721" radius={[0, 0, 0, 0]} />
-          <Bar dataKey="atRisk" stackId="a" fill="#ff6700" />
-          <Bar dataKey="notMet" stackId="a" fill="#a86a40" />
-          <Bar dataKey="pending" stackId="a" fill="#d4d4d4" radius={[2, 2, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+export function EmployeeOverviewChart({ rows }: EmployeeOverviewChartProps) {
+  const data = buildStatusBreakdown(
+    rows.filter((row) => row.owner),
+    (row) => row.owner!
   );
+  return <StatusBreakdownChart data={data} minBarWidth={64} height={320} />;
 }
 
 interface StatusDonutProps {

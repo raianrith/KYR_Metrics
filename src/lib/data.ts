@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
-import { DEMO_ENTRIES, DEMO_METRICS } from "@/lib/demo-data";
+import { DEMO_ENTRIES, DEMO_METRICS_WITH_LATEST } from "@/lib/demo-data";
 
 export function groupEntriesByMetric(
   entries: MetricEntry[]
@@ -30,7 +30,7 @@ export async function getDashboardData(): Promise<{
 
   if (!url || !key || url.includes("your_supabase")) {
     return {
-      metrics: DEMO_METRICS,
+      metrics: DEMO_METRICS_WITH_LATEST,
       entriesByMetric: groupEntriesByMetric(DEMO_ENTRIES),
       isDemo: true,
     };
@@ -58,7 +58,7 @@ export async function getDashboardData(): Promise<{
     };
   } catch (err) {
     return {
-      metrics: DEMO_METRICS,
+      metrics: DEMO_METRICS_WITH_LATEST,
       entriesByMetric: groupEntriesByMetric(DEMO_ENTRIES),
       isDemo: true,
       error: err instanceof Error ? err.message : "Database connection failed",

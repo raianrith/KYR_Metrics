@@ -200,7 +200,8 @@ export function DataStatusTab({
                   <td className="py-3 pr-4 sticky left-0 bg-white">
                     <p className="font-medium text-wg-charcoal">{titleCase(m.metric_name)}</p>
                     <p className="text-xs text-wg-muted">
-                      {titleCase(m.team)} · {cadenceLabel(m.cadence)}
+                      {titleCase(m.team)} · {titleCase(m.role)}
+                      {m.owner ? ` · ${titleCase(m.owner)}` : ""}
                     </p>
                   </td>
                   {QUARTERS.map((q) => {

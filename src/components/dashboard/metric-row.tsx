@@ -19,8 +19,10 @@ interface MetricRowProps {
   metric: MetricDashboardRow;
   entries?: MetricEntry[];
   showTeam?: boolean;
+  showEmployee?: boolean;
+  showCadence?: boolean;
   defaultExpanded?: boolean;
-  periodLabel?: string;
+  valueColumnLabel?: string;
   periodDetail?: string;
   chartYear?: number;
 }
@@ -29,8 +31,10 @@ export function MetricRow({
   metric,
   entries = [],
   showTeam = true,
+  showEmployee = true,
+  showCadence = false,
   defaultExpanded = false,
-  periodLabel,
+  valueColumnLabel,
   periodDetail,
   chartYear,
 }: MetricRowProps) {
@@ -68,6 +72,11 @@ export function MetricRow({
                     {titleCase(metric.team)}
                   </span>
                 )}
+                {showEmployee && metric.owner && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-wg-light text-wg-charcoal border border-black/10">
+                    {titleCase(metric.owner)}
+                  </span>
+                )}
                 <span className="text-xs text-wg-muted">
                   {titleCase(metric.role)}
                 </span>
@@ -87,17 +96,24 @@ export function MetricRow({
             </div>
 
             <div className="md:col-span-2 text-sm font-body">
-              <span className={fieldLabelClass}>Owner</span>
-              <span className="font-medium text-wg-charcoal">
-                {titleCase(metric.owner ?? metric.department_owner)}
-              </span>
-            </div>
-
-            <div className="md:col-span-2 text-sm font-body">
-              <span className={fieldLabelClass}>Cadence</span>
-              <span className="font-medium text-wg-charcoal">
-                {cadenceLabel(metric.cadence)}
-              </span>
+              {showCadence && (
+                <>
+                  <span className={fieldLabelClass}>Cadence</span>
+                  <span className="font-medium text-wg-charcoal">
+                    {cadenceLabel(metric.cadence)}
+                  </span>
+                </>
+              )}
+              {!showCadence && (
+                <>
+                  <span className={fieldLabelClass}>
+                    {showEmployee ? "Employee" : "Owner"}
+                  </span>
+                  <span className="font-medium text-wg-charcoal">
+                    {titleCase(metric.owner ?? metric.department_owner)}
+                  </span>
+                </>
+              )}
             </div>
 
             <div className="md:col-span-2 text-sm font-body">
@@ -110,9 +126,9 @@ export function MetricRow({
               </span>
             </div>
 
-            <div className="md:col-span-1 text-sm font-body">
+            <div className="md:col-span-2 text-sm font-body">
               <span className={fieldLabelClass}>
-                {periodLabel ? periodLabel : "Latest"}
+                {valueColumnLabel ?? "Value"}
               </span>
               <span className="font-semibold text-wg-gold">
                 {formatValue(metric.latest_actual, metric.value_type)}
@@ -122,7 +138,7 @@ export function MetricRow({
               )}
             </div>
 
-            <div className="md:col-span-1 flex items-center justify-end gap-2">
+            <div className="md:col-span-2 flex items-center justify-end gap-2">
               <span
                 className={`text-[10px] font-semibold px-2.5 py-1 rounded-sm border ${statusColor(metric.latest_status)}`}
               >

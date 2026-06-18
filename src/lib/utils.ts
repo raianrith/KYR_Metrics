@@ -62,13 +62,21 @@ export function formatValue(
 
 export function cadenceLabel(cadence: string): string {
   const labels: Record<string, string> = {
+    weekly: "Weekly",
     monthly: "Monthly",
     quarterly: "Quarterly",
-    annual: "Annual",
+    annual: "Yearly",
     ad_hoc: "Ad Hoc",
   };
   return labels[cadence] ?? titleCase(cadence.replace(/_/g, " "));
 }
+
+export const CADENCE_OPTIONS = [
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "annual", label: "Yearly" },
+] as const;
 
 export function statusColor(status: string | null): string {
   switch (status) {

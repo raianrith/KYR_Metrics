@@ -1,10 +1,12 @@
 import type {
+  CadenceType,
   DashboardStats,
   MetricDashboardRow,
   MetricEntry,
   Person,
   Team,
 } from "./types";
+import { CADENCE_SECTION_ORDER } from "./periods";
 
 export function computeStats(rows: MetricDashboardRow[]): DashboardStats {
   const totalMetrics = rows.length;
@@ -33,15 +35,19 @@ export function groupByTeam(rows: MetricDashboardRow[]) {
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
 }
 
-export function groupByOwner(rows: MetricDashboardRow[]) {
+export function groupByEmployee(rows: MetricDashboardRow[]) {
   const map = new Map<string, MetricDashboardRow[]>();
   for (const row of rows) {
-    const key = row.owner ?? row.department_owner ?? "Unassigned";
+    const key = row.owner ?? "Unassigned";
     const existing = map.get(key) ?? [];
     existing.push(row);
     map.set(key, existing);
   }
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+}
+
+export function groupByOwner(rows: MetricDashboardRow[]) {
+  return groupByEmployee(rows);
 }
 
 export function groupByDepartmentOwner(rows: MetricDashboardRow[]) {
@@ -55,14 +61,25 @@ export function groupByDepartmentOwner(rows: MetricDashboardRow[]) {
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
 }
 
-export function groupByTier(rows: MetricDashboardRow[]) {
-  const map = new Map<string, MetricDashboardRow[]>();
+export function groupByCadence(rows: MetricDashboardRow[]) {
+  const map = new Map<CadenceType, MetricDashboardRow[]>();
   for (const row of rows) {
-    const existing = map.get(row.tier) ?? [];
+    const existing = map.get(row.cadence) ?? [];
     existing.push(row);
-    map.set(row.tier, existing);
+    map.set(row.cadence, existing);
   }
-  return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  return CADENCE_SECTION_ORDER.filter((c) => map.has(c)).map((cadence) => [
+    cadence,
+    map.get(cadence)!,
+  ] as const);
+}
+
+export function filterMetricsByCadence(
+  rows: MetricDashboardRow[],
+  cadence: CadenceType | "all"
+): MetricDashboardRow[] {
+  if (cadence === "all") return rows;
+  return rows.filter((r) => r.cadence === cadence);
 }
 
 export function computeEntryStatus(
@@ -108,11 +125,54 @@ export const TEAM_COLORS: Record<string, string> = {
   "Business Development": "#1a3d32",
   "Client Services": "#cca92c",
   "Creative Services": "#8b5a3c",
+  Operations: "#4a6741",
+  Design: "#6b4c9a",
   "Web Dev": "#5c6b66",
+  "Paid Ads": "#c45c26",
 };
 
 export function getTeamColor(team: string): string {
   return TEAM_COLORS[team] ?? "#a0a9a6";
+}
+
+export interface StatusBreakdownRow {
+  label: string;
+  met: number;
+  atRisk: number;
+  notMet: number;
+  pending: number;
+  total: number;
+}
+
+export function buildStatusBreakdown(
+  rows: MetricDashboardRow[],
+  getGroup: (row: MetricDashboardRow) => string
+): StatusBreakdownRow[] {
+  const map = new Map<
+    string,
+    { met: number; atRisk: number; notMet: number; pending: number }
+  >();
+
+  for (const row of rows) {
+    const key = getGroup(row);
+    if (!map.has(key)) {
+      map.set(key, { met: 0, atRisk: 0, notMet: 0, pending: 0 });
+    }
+    const bucket = map.get(key)!;
+    const s = row.latest_status;
+    if (s === "met" || s === "on_track") bucket.met++;
+    else if (s === "at_risk") bucket.atRisk++;
+    else if (s === "not_met" || s === "off_track") bucket.notMet++;
+    else bucket.pending++;
+  }
+
+  return Array.from(map.entries())
+    .map(([label, stats]) => ({
+      label,
+      ...stats,
+      total: stats.met + stats.atRisk + stats.notMet + stats.pending,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export type { MetricDashboardRow, MetricEntry, Person, Team };

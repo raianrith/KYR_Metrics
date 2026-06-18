@@ -1,4 +1,4 @@
-export type CadenceType = "monthly" | "quarterly" | "annual" | "ad_hoc";
+export type CadenceType = "weekly" | "monthly" | "quarterly" | "annual" | "ad_hoc";
 export type MetricValueType =
   | "percentage"
   | "currency"
