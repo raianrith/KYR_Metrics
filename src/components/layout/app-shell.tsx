@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, LayoutDashboard, Settings2 } from "lucide-react";
+import { LayoutDashboard, Settings2 } from "lucide-react";
 import { cn, titleCase } from "@/lib/utils";
 
 const navItems = [
@@ -18,18 +18,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="wg-header text-white sticky top-0 z-50 shadow-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-[4.25rem]">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-sm bg-wg-orange/15 border border-wg-orange/30">
-                <BarChart3 className="w-5 h-5 text-wg-orange" />
-              </div>
-              <div>
-                <h1 className="font-display text-xl font-normal tracking-wide leading-none">
-                  KYR Metrics
-                </h1>
-                <p className="font-body text-[11px] text-wg-muted mt-1">
-                  Weidert Group · Know Your Role
-                </p>
-              </div>
+            <div>
+              <h1 className="font-display text-xl font-normal tracking-wide leading-none">
+                KYR Metrics Dashboard
+              </h1>
+              <p className="font-body text-[11px] text-wg-muted mt-1">
+                Weidert Group · Know Your Role
+              </p>
             </div>
 
             <nav className="flex items-center gap-1">

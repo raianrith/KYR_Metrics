@@ -1,7 +1,7 @@
 "use client";
 
 import { PeriodSelector, type PeriodView } from "@/components/dashboard/period-selector";
-import { ChartLegend, EmployeeOverviewChart, StatusSummary, TeamOverviewChart } from "@/components/dashboard/charts";
+import { ChartLegend, CadencePeriodStatusCharts, EmployeeOverviewChart, StatusSummary, TeamOverviewChart } from "@/components/dashboard/charts";
 import {
   filterMetricsByScope,
   MetricsFilterBar,
@@ -101,9 +101,9 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
           Performance Dashboard
         </h2>
         <p className="text-wg-muted mt-2 font-body normal-case tracking-normal">
-          Track Know Your Role metrics by period. Weekly and monthly metrics show
-          period averages; quarterly and yearly metrics show a single value for
-          the selected timeframe.
+          Track Know Your Role metrics by period. Monthly metrics show period
+          averages; quarterly and yearly metrics show a single value for the
+          selected timeframe.
         </p>
       </div>
 
@@ -126,11 +126,7 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
           Showing results for{" "}
           <strong className="text-wg-suede">{periodLabel}</strong>
         </p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs text-wg-muted font-body normal-case">
-          <p>
-            <span className="font-medium text-wg-charcoal">Weekly</span> — week
-            average with coverage (e.g. 8/13 weeks)
-          </p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-wg-muted font-body normal-case">
           <p>
             <span className="font-medium text-wg-charcoal">Monthly</span> — month
             average with coverage (e.g. 2/3 months)
@@ -226,6 +222,23 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
         <CardContent>
           <EmployeeOverviewChart rows={periodMetrics} />
           <ChartLegend />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Status by Period</CardTitle>
+          <CardDescription>
+            How monthly, quarterly, and yearly metrics performed across each
+            period · {periodLabel}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CadencePeriodStatusCharts
+            metrics={metrics}
+            entriesByMetric={entriesByMetric}
+            periodFilter={periodFilter}
+          />
         </CardContent>
       </Card>
 

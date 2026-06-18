@@ -30,7 +30,6 @@ interface MetricsListProps {
 }
 
 const CADENCE_ACCENT: Record<CadenceType, string> = {
-  weekly: "border-l-sky-500",
   monthly: "border-l-wg-orange",
   quarterly: "border-l-violet-500",
   annual: "border-l-emerald-600",

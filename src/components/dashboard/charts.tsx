@@ -1,12 +1,18 @@
 "use client";
 
-import type { MetricDashboardRow } from "@/lib/types";
+import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
 import {
+  buildCadencePeriodStatus,
   buildStatusBreakdown,
+  countMetricsByCadence,
   getTeamColor,
+  type PeriodStatusGranularity,
+  type PeriodStatusRow,
   type StatusBreakdownRow,
 } from "@/lib/metrics";
+import type { PeriodFilter } from "@/lib/periods";
 import { statusColor, statusLabel, titleCase } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Bar,
   BarChart,
@@ -102,6 +108,242 @@ export function ChartLegend() {
         <span className="w-2.5 h-2.5 rounded-sm bg-wg-muted/40" /> Pending
       </span>
     </div>
+  );
+}
+
+function PeriodStatusTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: { payload: PeriodStatusRow }[];
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white border border-black/10 rounded-sm shadow-lg p-3 text-sm">
+      <p className="font-semibold text-wg-suede mb-2 text-sm">{d.label}</p>
+      <div className="space-y-1 text-xs font-body normal-case">
+        <p className="text-emerald-800">Met: {d.met}</p>
+        <p className="text-emerald-600">On Track: {d.onTrack}</p>
+        <p className="text-amber-700">At Risk: {d.atRisk}</p>
+        <p className="text-rose-700">Not Met: {d.notMet}</p>
+        <p className="text-wg-muted">Missing: {d.missing}</p>
+        <p className="text-wg-muted pt-1 border-t border-black/5">
+          {d.total} metrics in this cadence
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const PERIOD_STATUS_COLORS = {
+  met: "#112721",
+  onTrack: "#4a6741",
+  atRisk: "#ff6700",
+  notMet: "#a86a40",
+  missing: "#d4d4d4",
+} as const;
+
+function PeriodStatusChart({
+  data,
+  minBarWidth = 56,
+  height = 300,
+}: {
+  data: PeriodStatusRow[];
+  minBarWidth?: number;
+  height?: number;
+}) {
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-48 rounded-sm border border-dashed border-black/10 bg-wg-light/50">
+        <p className="text-sm text-wg-muted font-body normal-case">
+          No period buckets in the selected range.
+        </p>
+      </div>
+    );
+  }
+
+  const chartWidth = Math.max(600, data.length * minBarWidth);
+
+  return (
+    <div className="overflow-x-auto -mx-1 px-1">
+      <div style={{ width: chartWidth, height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 56 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={TICK_STYLE}
+              interval={0}
+              angle={-35}
+              textAnchor="end"
+              height={56}
+            />
+            <YAxis tick={TICK_STYLE} allowDecimals={false} />
+            <Tooltip content={<PeriodStatusTooltip />} />
+            <Bar dataKey="met" stackId="a" fill={PERIOD_STATUS_COLORS.met} />
+            <Bar dataKey="onTrack" stackId="a" fill={PERIOD_STATUS_COLORS.onTrack} />
+            <Bar dataKey="atRisk" stackId="a" fill={PERIOD_STATUS_COLORS.atRisk} />
+            <Bar dataKey="notMet" stackId="a" fill={PERIOD_STATUS_COLORS.notMet} />
+            <Bar
+              dataKey="missing"
+              stackId="a"
+              fill={PERIOD_STATUS_COLORS.missing}
+              radius={[2, 2, 0, 0]}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function PeriodStatusLegend() {
+  return (
+    <div className="flex items-center justify-center gap-3 mt-4 text-[10px] text-wg-muted font-body normal-case flex-wrap">
+      <span className="flex items-center gap-1.5">
+        <span
+          className="w-2.5 h-2.5 rounded-sm"
+          style={{ backgroundColor: PERIOD_STATUS_COLORS.met }}
+        />{" "}
+        Met
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span
+          className="w-2.5 h-2.5 rounded-sm"
+          style={{ backgroundColor: PERIOD_STATUS_COLORS.onTrack }}
+        />{" "}
+        On Track
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span
+          className="w-2.5 h-2.5 rounded-sm"
+          style={{ backgroundColor: PERIOD_STATUS_COLORS.atRisk }}
+        />{" "}
+        At Risk
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span
+          className="w-2.5 h-2.5 rounded-sm"
+          style={{ backgroundColor: PERIOD_STATUS_COLORS.notMet }}
+        />{" "}
+        Not Met
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span
+          className="w-2.5 h-2.5 rounded-sm"
+          style={{ backgroundColor: PERIOD_STATUS_COLORS.missing }}
+        />{" "}
+        Missing
+      </span>
+    </div>
+  );
+}
+
+const GRANULARITY_META: Record<
+  PeriodStatusGranularity,
+  { label: string; minBarWidth: number; description: string }
+> = {
+  monthly: {
+    label: "By Month",
+    minBarWidth: 64,
+    description: "Monthly metrics — one bar per month in the selected range",
+  },
+  quarterly: {
+    label: "By Quarter",
+    minBarWidth: 80,
+    description:
+      "Quarterly metrics — all four quarters for the selected year",
+  },
+  yearly: {
+    label: "By Year",
+    minBarWidth: 120,
+    description:
+      "Yearly metrics — current year and previous year for comparison",
+  },
+};
+
+interface CadencePeriodStatusChartsProps {
+  metrics: MetricDashboardRow[];
+  entriesByMetric: Record<string, MetricEntry[]>;
+  periodFilter: PeriodFilter;
+}
+
+function PeriodStatusPanel({
+  metrics,
+  entriesByMetric,
+  periodFilter,
+  granularity,
+}: CadencePeriodStatusChartsProps & { granularity: PeriodStatusGranularity }) {
+  const metricCount = countMetricsByCadence(metrics, granularity);
+  const data = buildCadencePeriodStatus(
+    metrics,
+    entriesByMetric,
+    periodFilter,
+    granularity
+  );
+  const meta = GRANULARITY_META[granularity];
+
+  if (metricCount === 0) {
+    return (
+      <div className="flex items-center justify-center h-48 rounded-sm border border-dashed border-black/10 bg-wg-light/50">
+        <p className="text-sm text-wg-muted font-body normal-case text-center px-4">
+          No {granularity === "yearly" ? "yearly" : granularity} metrics in the
+          catalog.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-wg-muted font-body normal-case">
+        {meta.description} · {metricCount} metrics
+      </p>
+      <PeriodStatusChart data={data} minBarWidth={meta.minBarWidth} />
+      <PeriodStatusLegend />
+    </div>
+  );
+}
+
+export function CadencePeriodStatusCharts({
+  metrics,
+  entriesByMetric,
+  periodFilter,
+}: CadencePeriodStatusChartsProps) {
+  return (
+    <Tabs defaultValue="monthly">
+      <TabsList>
+        <TabsTrigger value="monthly">By Month</TabsTrigger>
+        <TabsTrigger value="quarterly">By Quarter</TabsTrigger>
+        <TabsTrigger value="yearly">By Year</TabsTrigger>
+      </TabsList>
+      <TabsContent value="monthly">
+        <PeriodStatusPanel
+          metrics={metrics}
+          entriesByMetric={entriesByMetric}
+          periodFilter={periodFilter}
+          granularity="monthly"
+        />
+      </TabsContent>
+      <TabsContent value="quarterly">
+        <PeriodStatusPanel
+          metrics={metrics}
+          entriesByMetric={entriesByMetric}
+          periodFilter={periodFilter}
+          granularity="quarterly"
+        />
+      </TabsContent>
+      <TabsContent value="yearly">
+        <PeriodStatusPanel
+          metrics={metrics}
+          entriesByMetric={entriesByMetric}
+          periodFilter={periodFilter}
+          granularity="yearly"
+        />
+      </TabsContent>
+    </Tabs>
   );
 }
 

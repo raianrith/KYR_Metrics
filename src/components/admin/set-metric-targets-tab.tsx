@@ -302,7 +302,6 @@ export function SetMetricTargetsTab({
                 </SelectContent>
               </Select>
               <p className="text-xs text-wg-muted">
-                {cadence === "weekly" && "One entry per week"}
                 {cadence === "monthly" && "One entry per month"}
                 {cadence === "quarterly" && "One entry per quarter (Q1–Q4)"}
                 {cadence === "annual" && "One entry per calendar year"}

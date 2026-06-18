@@ -134,20 +134,10 @@ export function countMonthsInRange(start: string, end: string): number {
   );
 }
 
-export function countWeeksInRange(start: string, end: string): number {
-  const s = new Date(start + "T00:00:00");
-  const e = new Date(end + "T00:00:00");
-  const days =
-    Math.floor((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  return Math.max(1, Math.ceil(days / 7));
-}
-
-function periodicPeriodSnapshot(
+function monthlyPeriodSnapshot(
   relevant: MetricEntry[],
-  cadence: "monthly" | "weekly",
   periodsExpected: number
 ): PeriodSnapshot {
-  const unit = cadence === "weekly" ? "Weeks" : "Months";
   const withValues = relevant.filter((e) => e.actual_value !== null);
   const periodsEntered = withValues.length;
 
@@ -160,9 +150,9 @@ function periodicPeriodSnapshot(
       monthsExpected: periodsExpected,
       entryCount: relevant.length,
       isComplete: false,
-      label: `0/${periodsExpected} ${unit}`,
+      label: `0/${periodsExpected} Months`,
       displayMode: "average",
-      valueColumnLabel: cadence === "weekly" ? "Week Avg" : "Month Avg",
+      valueColumnLabel: "Month Avg",
     };
   }
 
@@ -178,9 +168,9 @@ function periodicPeriodSnapshot(
     monthsExpected: periodsExpected,
     entryCount: relevant.length,
     isComplete: periodsEntered >= periodsExpected,
-    label: `${periodsEntered}/${periodsExpected} ${unit}`,
+    label: `${periodsEntered}/${periodsExpected} Months`,
     displayMode: "average",
-    valueColumnLabel: cadence === "weekly" ? "Week Avg" : "Month Avg",
+    valueColumnLabel: "Month Avg",
   };
 }
 
@@ -256,21 +246,15 @@ export function getPeriodSnapshotForRange(
       periodEnd: null,
       entryCount: 0,
       isComplete: false,
-      displayMode:
-        cadence === "monthly" || cadence === "weekly" ? "average" : "point",
+      displayMode: cadence === "monthly" ? "average" : "point",
       valueColumnLabel: getCadenceValueColumnLabel(cadence),
     };
   }
 
-  if (cadence === "monthly" || cadence === "weekly") {
-    const periodsExpected =
-      cadence === "weekly"
-        ? countWeeksInRange(start, end)
-        : countMonthsInRange(start, end);
-    return periodicPeriodSnapshot(
+  if (cadence === "monthly") {
+    return monthlyPeriodSnapshot(
       relevant,
-      cadence,
-      periodsExpected
+      countMonthsInRange(start, end)
     );
   }
 
@@ -321,7 +305,6 @@ export interface PeriodSnapshot {
 }
 
 export const CADENCE_SECTION_ORDER: CadenceType[] = [
-  "weekly",
   "monthly",
   "quarterly",
   "annual",
@@ -330,8 +313,6 @@ export const CADENCE_SECTION_ORDER: CadenceType[] = [
 
 export function getCadenceValueColumnLabel(cadence: CadenceType): string {
   switch (cadence) {
-    case "weekly":
-      return "Week Avg";
     case "monthly":
       return "Month Avg";
     case "quarterly":
@@ -349,8 +330,6 @@ export function getCadenceSectionDescription(
 ): string {
   const period = getPeriodLabel(filter);
   switch (cadence) {
-    case "weekly":
-      return `Average of weekly entries across ${period}. Coverage shows weeks with data entered.`;
     case "monthly":
       return `Average of monthly entries across ${period}. Coverage shows months with data entered.`;
     case "quarterly":
@@ -457,26 +436,17 @@ export function getPeriodSnapshot(
       periodEnd: null,
       entryCount: 0,
       isComplete: false,
-      displayMode:
-        cadence === "monthly" || cadence === "weekly" ? "average" : "point",
+      displayMode: cadence === "monthly" ? "average" : "point",
       valueColumnLabel: getCadenceValueColumnLabel(cadence),
     };
   }
 
   if (cadence === "monthly" && quarter !== "full") {
-    return periodicPeriodSnapshot(relevant, "monthly", 3);
-  }
-
-  if (cadence === "weekly" && quarter !== "full") {
-    return periodicPeriodSnapshot(relevant, "weekly", 13);
+    return monthlyPeriodSnapshot(relevant, 3);
   }
 
   if (cadence === "monthly" && quarter === "full") {
-    return periodicPeriodSnapshot(relevant, "monthly", 12);
-  }
-
-  if (cadence === "weekly" && quarter === "full") {
-    return periodicPeriodSnapshot(relevant, "weekly", 52);
+    return monthlyPeriodSnapshot(relevant, 12);
   }
 
   if (cadence === "quarterly" && quarter === "full") {
@@ -592,4 +562,120 @@ export function countCoverage(
   }
 
   return { filled, partial, missing, total: metrics.length };
+}
+
+export interface DateBucket {
+  key: string;
+  label: string;
+  start: string;
+  end: string;
+}
+
+export function resolveFilterRange(filter: PeriodFilter): {
+  start: string;
+  end: string;
+  year: number;
+} {
+  if (filter.mode === "custom") {
+    return {
+      start: filter.start,
+      end: filter.end,
+      year: new Date(filter.end + "T00:00:00").getFullYear(),
+    };
+  }
+  if (filter.quarter === "full") {
+    return {
+      start: `${filter.year}-01-01`,
+      end: `${filter.year}-12-31`,
+      year: filter.year,
+    };
+  }
+  const bounds = getQuarterBounds(filter.year, filter.quarter);
+  return { ...bounds, year: filter.year };
+}
+
+export function getMonthlyBucketsInRange(
+  start: string,
+  end: string
+): DateBucket[] {
+  const buckets: DateBucket[] = [];
+  const rangeStart = new Date(start + "T00:00:00");
+  const rangeEnd = new Date(end + "T00:00:00");
+  let y = rangeStart.getFullYear();
+  let m = rangeStart.getMonth();
+  const endY = rangeEnd.getFullYear();
+  const endM = rangeEnd.getMonth();
+
+  while (y < endY || (y === endY && m <= endM)) {
+    const monthStart = toDateString(new Date(y, m, 1));
+    const monthEnd = toDateString(new Date(y, m + 1, 0));
+    if (monthEnd >= start && monthStart <= end) {
+      buckets.push({
+        key: `${y}-${String(m + 1).padStart(2, "0")}`,
+        label: new Date(y, m, 1).toLocaleDateString("en-US", {
+          month: "short",
+          year: "2-digit",
+        }),
+        start: monthStart < start ? start : monthStart,
+        end: monthEnd > end ? end : monthEnd,
+      });
+    }
+    m++;
+    if (m > 11) {
+      m = 0;
+      y++;
+    }
+  }
+
+  return buckets;
+}
+
+export function getQuarterlyBucketsInRange(
+  start: string,
+  end: string
+): DateBucket[] {
+  const buckets: DateBucket[] = [];
+  const rangeStart = new Date(start + "T00:00:00");
+  const rangeEnd = new Date(end + "T00:00:00");
+  let y = rangeStart.getFullYear();
+  const endY = rangeEnd.getFullYear();
+
+  while (y <= endY) {
+    for (const q of QUARTERS) {
+      const bounds = getQuarterBounds(y, q);
+      if (bounds.end >= start && bounds.start <= end) {
+        buckets.push({
+          key: `${y}-Q${q}`,
+          label: `Q${q} '${String(y).slice(2)}`,
+          start: bounds.start < start ? start : bounds.start,
+          end: bounds.end > end ? end : bounds.end,
+        });
+      }
+    }
+    y++;
+  }
+
+  return buckets;
+}
+
+export function getQuarterlyBucketsForYear(year: number): DateBucket[] {
+  return QUARTERS.map((q) => {
+    const bounds = getQuarterBounds(year, q);
+    return {
+      key: `${year}-Q${q}`,
+      label: `Q${q} '${String(year).slice(2)}`,
+      start: bounds.start,
+      end: bounds.end,
+    };
+  });
+}
+
+export function getAnnualBucketsForYearComparison(year: number): DateBucket[] {
+  const previousYear = year - 1;
+  return [previousYear, year].map((y) => ({
+    key: String(y),
+    label: String(y),
+    start: `${y}-01-01`,
+    end: `${y}-12-31`,
+  }));
 }

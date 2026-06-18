@@ -10,7 +10,7 @@ const jost = Jost({
 });
 
 export const metadata: Metadata = {
-  title: "KYR Metrics | Weidert Group",
+  title: "KYR Metrics Dashboard | Weidert Group",
   description:
     "Know Your Role — performance metrics dashboard for Weidert Group",
 };

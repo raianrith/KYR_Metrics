@@ -91,7 +91,7 @@ export function MetricsFilterBar({
 
   const cadenceOptions: { value: MetricsCadenceFilter; label: string }[] = [
     { value: "all", label: "All Cadences" },
-    ...(["weekly", "monthly", "quarterly", "annual"] as const).map((c) => ({
+    ...(["monthly", "quarterly", "annual"] as const).map((c) => ({
       value: c,
       label: cadenceLabel(c),
     })),

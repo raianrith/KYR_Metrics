@@ -62,7 +62,6 @@ export function formatValue(
 
 export function cadenceLabel(cadence: string): string {
   const labels: Record<string, string> = {
-    weekly: "Weekly",
     monthly: "Monthly",
     quarterly: "Quarterly",
     annual: "Yearly",
@@ -72,7 +71,6 @@ export function cadenceLabel(cadence: string): string {
 }
 
 export const CADENCE_OPTIONS = [
-  { value: "weekly", label: "Weekly" },
   { value: "monthly", label: "Monthly" },
   { value: "quarterly", label: "Quarterly" },
   { value: "annual", label: "Yearly" },

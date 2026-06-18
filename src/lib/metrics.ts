@@ -1,12 +1,20 @@
 import type {
   CadenceType,
   DashboardStats,
+  EntryStatus,
   MetricDashboardRow,
   MetricEntry,
   Person,
   Team,
 } from "./types";
-import { CADENCE_SECTION_ORDER } from "./periods";
+import {
+  CADENCE_SECTION_ORDER,
+  getAnnualBucketsForYearComparison,
+  getMonthlyBucketsInRange,
+  getQuarterlyBucketsForYear,
+  resolveFilterRange,
+  type PeriodFilter,
+} from "./periods";
 
 export function computeStats(rows: MetricDashboardRow[]): DashboardStats {
   const totalMetrics = rows.length;
@@ -142,6 +150,98 @@ export interface StatusBreakdownRow {
   notMet: number;
   pending: number;
   total: number;
+}
+
+export type PeriodStatusGranularity = "monthly" | "quarterly" | "yearly";
+
+export interface PeriodStatusRow {
+  label: string;
+  met: number;
+  onTrack: number;
+  atRisk: number;
+  notMet: number;
+  missing: number;
+  total: number;
+}
+
+const GRANULARITY_CADENCE: Record<PeriodStatusGranularity, CadenceType> = {
+  monthly: "monthly",
+  quarterly: "quarterly",
+  yearly: "annual",
+};
+
+function classifyEntryStatus(status: EntryStatus | null | undefined) {
+  if (!status || status === "pending") return "missing" as const;
+  switch (status) {
+    case "met":
+      return "met" as const;
+    case "on_track":
+      return "onTrack" as const;
+    case "at_risk":
+      return "atRisk" as const;
+    case "not_met":
+    case "off_track":
+      return "notMet" as const;
+    default:
+      return "missing" as const;
+  }
+}
+
+export function buildCadencePeriodStatus(
+  metrics: MetricDashboardRow[],
+  entriesByMetric: Record<string, MetricEntry[]>,
+  filter: PeriodFilter,
+  granularity: PeriodStatusGranularity
+): PeriodStatusRow[] {
+  const cadence = GRANULARITY_CADENCE[granularity];
+  const relevantMetrics = metrics.filter((m) => m.cadence === cadence);
+  const range = resolveFilterRange(filter);
+
+  const buckets =
+    granularity === "monthly"
+      ? getMonthlyBucketsInRange(range.start, range.end)
+      : granularity === "quarterly"
+        ? getQuarterlyBucketsForYear(range.year)
+        : getAnnualBucketsForYearComparison(range.year);
+
+  return buckets.map((bucket) => {
+    const counts = {
+      met: 0,
+      onTrack: 0,
+      atRisk: 0,
+      notMet: 0,
+      missing: 0,
+    };
+
+    for (const metric of relevantMetrics) {
+      const entries = entriesByMetric[metric.metric_id] ?? [];
+      const entry = entries.find(
+        (e) => e.period_end >= bucket.start && e.period_end <= bucket.end
+      );
+
+      if (!entry || entry.actual_value === null) {
+        counts.missing++;
+        continue;
+      }
+
+      const statusKey = classifyEntryStatus(entry.status);
+      counts[statusKey]++;
+    }
+
+    return {
+      label: bucket.label,
+      ...counts,
+      total: relevantMetrics.length,
+    };
+  });
+}
+
+export function countMetricsByCadence(
+  metrics: MetricDashboardRow[],
+  granularity: PeriodStatusGranularity
+): number {
+  return metrics.filter((m) => m.cadence === GRANULARITY_CADENCE[granularity])
+    .length;
 }
 
 export function buildStatusBreakdown(

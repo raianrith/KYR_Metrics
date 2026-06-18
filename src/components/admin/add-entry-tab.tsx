@@ -103,14 +103,13 @@ export function AddEntryTab({
     return [...names].sort();
   }, [employees, enteredBy]);
   const isMonthly = selectedMetric?.cadence === "monthly";
-  const isWeekly = selectedMetric?.cadence === "weekly";
   const isAnnual = selectedMetric?.cadence === "annual";
-  const isPeriodic = isMonthly || isWeekly;
+  const isPeriodic = isMonthly;
 
   const applyPeriodDates = useCallback(
     (y: number, q: Quarter, m: number, metric?: MetricDashboardRow) => {
       if (!metric) return;
-      if (metric.cadence === "monthly" || metric.cadence === "weekly") {
+      if (metric.cadence === "monthly") {
         const bounds = getMonthBounds(y, m);
         setPeriodStart(bounds.start);
         setPeriodEnd(bounds.end);
@@ -134,7 +133,7 @@ export function AddEntryTab({
       const entries = entriesByMetric[metricId] ?? [];
       let existing: MetricEntry | undefined;
 
-      if (metric.cadence === "monthly" || metric.cadence === "weekly") {
+      if (metric.cadence === "monthly") {
         const bounds = getMonthBounds(y, m);
         existing = entries.find(
           (e) => e.period_start === bounds.start && e.period_end === bounds.end
