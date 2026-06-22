@@ -1,12 +1,17 @@
 {
-  "compilerOptions": {
-    "routes": {
-      "/**": {
-        "headers": {
-          "X-Frame-Options": "DENY",
-          "X-Content-Type-Options": "nosniff"
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
         }
-      }
+      ]
     }
-  }
+  ]
 }
