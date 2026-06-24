@@ -19,8 +19,8 @@ import {
   getPeriodLabel,
   getQuarterBounds,
 } from "@/lib/periods";
-import { computeStats, filterMetricsByCadence, filterMetricsByMetricOwner } from "@/lib/metrics";
-import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
+import { computeStats, filterMetricsByCadence, filterMetricsByMetricOwner, filterMetricsByTier } from "@/lib/metrics";
+import type { MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -35,9 +35,14 @@ import { useMemo, useState } from "react";
 interface DashboardViewProps {
   metrics: MetricDashboardRow[];
   entriesByMetric: Record<string, MetricEntry[]>;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
 }
 
-export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) {
+export function DashboardView({
+  metrics,
+  entriesByMetric,
+  periodTargetsByMetric,
+}: DashboardViewProps) {
   const initialYear = new Date().getFullYear();
   const initialQuarter = getCurrentQuarter();
   const initialBounds = getQuarterBounds(initialYear, initialQuarter);
@@ -50,6 +55,7 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
   const [scope, setScope] = useState("all");
   const [cadenceFilter, setCadenceFilter] = useState<MetricsCadenceFilter>("all");
   const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState("all");
 
   const periodFilter = useMemo(
     () => buildPeriodFilter(year, quarter, customStart, customEnd),
@@ -59,21 +65,28 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
   const periodLabel = getPeriodLabel(periodFilter);
 
   const periodMetrics = useMemo(
-    () => applyPeriodFilterToMetrics(metrics, entriesByMetric, periodFilter),
-    [metrics, entriesByMetric, periodFilter]
+    () =>
+      applyPeriodFilterToMetrics(
+        metrics,
+        entriesByMetric,
+        periodFilter,
+        periodTargetsByMetric
+      ),
+    [metrics, entriesByMetric, periodFilter, periodTargetsByMetric]
   );
 
-  const ownerFilteredMetrics = useMemo(
-    () => filterMetricsByMetricOwner(periodMetrics, metricOwnerFilter),
-    [periodMetrics, metricOwnerFilter]
-  );
+  const baseFilteredMetrics = useMemo(() => {
+    let rows = filterMetricsByMetricOwner(periodMetrics, metricOwnerFilter);
+    rows = filterMetricsByTier(rows, tierFilter);
+    return rows;
+  }, [periodMetrics, metricOwnerFilter, tierFilter]);
 
-  const stats = computeStats(ownerFilteredMetrics);
+  const stats = computeStats(baseFilteredMetrics);
 
   const filteredMetrics = useMemo(() => {
-    const scoped = filterMetricsByScope(ownerFilteredMetrics, groupBy, scope);
+    const scoped = filterMetricsByScope(baseFilteredMetrics, groupBy, scope);
     return filterMetricsByCadence(scoped, cadenceFilter);
-  }, [ownerFilteredMetrics, groupBy, scope, cadenceFilter]);
+  }, [baseFilteredMetrics, groupBy, scope, cadenceFilter]);
 
   const handleGroupByChange = (value: MetricsGroupBy) => {
     setGroupBy(value);
@@ -197,7 +210,7 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <TeamOverviewChart rows={ownerFilteredMetrics} />
+            <TeamOverviewChart rows={baseFilteredMetrics} />
             <ChartLegend />
           </CardContent>
         </Card>
@@ -226,7 +239,7 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <TeamMemberOverviewChart rows={ownerFilteredMetrics} />
+          <TeamMemberOverviewChart rows={baseFilteredMetrics} />
           <ChartLegend />
         </CardContent>
       </Card>
@@ -241,11 +254,7 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
         </CardHeader>
         <CardContent>
           <CadencePeriodStatusCharts
-            metrics={
-              metricOwnerFilter === "all"
-                ? metrics
-                : filterMetricsByMetricOwner(metrics, metricOwnerFilter)
-            }
+            metrics={baseFilteredMetrics}
             entriesByMetric={entriesByMetric}
             periodFilter={periodFilter}
           />
@@ -258,11 +267,13 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
           scope={scope}
           cadence={cadenceFilter}
           metricOwner={metricOwnerFilter}
+          tier={tierFilter}
           metrics={periodMetrics}
           onGroupByChange={handleGroupByChange}
           onScopeChange={setScope}
           onCadenceChange={setCadenceFilter}
           onMetricOwnerChange={setMetricOwnerFilter}
+          onTierChange={setTierFilter}
         />
 
         <MetricsList
@@ -273,6 +284,7 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
           periodFilter={periodFilter}
           entriesByMetric={entriesByMetric}
           chartEntriesByMetric={chartEntriesByMetric}
+          periodTargetsByMetric={periodTargetsByMetric}
         />
       </div>
     </div>

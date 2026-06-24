@@ -12,25 +12,35 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatMetricOptionLabel } from "@/lib/metrics-catalog";
-import { filterMetricsByMetricOwner } from "@/lib/metrics";
+import { filterMetricsByMetricOwner, filterMetricsByTier, normalizeTier } from "@/lib/metrics";
+import {
+  getTargetPeriodSlots,
+  periodTargetsForYear,
+  targetSummaryForMetric,
+} from "@/lib/targets";
+import { getAvailableYears } from "@/lib/periods";
 import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
+import { TierFilter } from "@/components/shared/tier-filter";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CadenceType,
   MetricDashboardRow,
+  MetricEntry,
+  MetricPeriodTarget,
   TargetDirection,
 } from "@/lib/types";
 import {
   CADENCE_OPTIONS,
   cadenceLabel,
-  formatValue,
   titleCase,
 } from "@/lib/utils";
-import { CheckCircle2, Filter, Loader2, Save, Target } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CheckCircle2, Copy, Filter, Loader2, Save, Target } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 interface SetMetricTargetsTabProps {
   metrics: MetricDashboardRow[];
+  entriesByMetric: Record<string, MetricEntry[]>;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
   onSaved?: () => void;
 }
 
@@ -40,25 +50,22 @@ const TARGET_DIRECTIONS: { value: TargetDirection; label: string }[] = [
   { value: "equals", label: "Equals Target" },
 ];
 
-function targetSummary(metric: MetricDashboardRow): string {
-  if (metric.target_label) return metric.target_label;
-  if (metric.target_value !== null) {
-    return formatValue(metric.target_value, metric.value_type);
-  }
-  return "—";
-}
-
 export function SetMetricTargetsTab({
   metrics,
+  entriesByMetric,
+  periodTargetsByMetric,
   onSaved,
 }: SetMetricTargetsTabProps) {
   const [search, setSearch] = useState("");
   const [teamFilter, setTeamFilter] = useState("all");
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState("all");
   const [selectedMetricId, setSelectedMetricId] = useState("");
+  const [targetYear, setTargetYear] = useState(new Date().getFullYear());
   const [cadence, setCadence] = useState<CadenceType>("monthly");
-  const [targetValue, setTargetValue] = useState("");
+  const [defaultTarget, setDefaultTarget] = useState("");
+  const [periodTargets, setPeriodTargets] = useState<Record<string, string>>({});
   const [targetDirection, setTargetDirection] =
     useState<TargetDirection>("higher_is_better");
   const [targetLabel, setTargetLabel] = useState("");
@@ -99,29 +106,71 @@ export function SetMetricTargetsTab({
           return false;
         }
       }
+      if (tierFilter !== "all") {
+        if (tierFilter === "unassigned") {
+          if (normalizeTier(m.tier) !== "Unassigned") return false;
+        } else if (normalizeTier(m.tier) !== tierFilter) {
+          return false;
+        }
+      }
       if (!q) return true;
       return (
         m.metric_name.toLowerCase().includes(q) ||
         m.team.toLowerCase().includes(q) ||
         m.role.toLowerCase().includes(q) ||
         m.owner?.toLowerCase().includes(q) ||
-        m.department_owner?.toLowerCase().includes(q)
+        m.department_owner?.toLowerCase().includes(q) ||
+        normalizeTier(m.tier).toLowerCase().includes(q)
       );
     });
-  }, [metrics, search, teamFilter, employeeFilter, metricOwnerFilter]);
+  }, [metrics, search, teamFilter, employeeFilter, metricOwnerFilter, tierFilter]);
 
   const selectedMetric = metrics.find((m) => m.metric_id === selectedMetricId);
+
+  const periodSlots = useMemo(() => {
+    if (!selectedMetric) return [];
+    const effectiveCadence =
+      cadence === "ad_hoc" ? "monthly" : cadence;
+    return getTargetPeriodSlots(effectiveCadence, targetYear);
+  }, [selectedMetric, cadence, targetYear]);
 
   const loadMetricIntoForm = (metric: MetricDashboardRow) => {
     setSelectedMetricId(metric.metric_id);
     setCadence(metric.cadence === "ad_hoc" ? "monthly" : metric.cadence);
-    setTargetValue(
+    setDefaultTarget(
       metric.target_value !== null ? String(metric.target_value) : ""
     );
     setTargetDirection(metric.target_direction);
     setTargetLabel(metric.target_label ?? "");
+    setPeriodTargets(
+      periodTargetsForYear(
+        periodTargetsByMetric[metric.metric_id] ?? [],
+        targetYear
+      )
+    );
     setSuccess(false);
     setError(null);
+  };
+
+  useEffect(() => {
+    if (!selectedMetricId) return;
+    const metric = metrics.find((m) => m.metric_id === selectedMetricId);
+    if (!metric) return;
+    setPeriodTargets(
+      periodTargetsForYear(
+        periodTargetsByMetric[selectedMetricId] ?? [],
+        targetYear
+      )
+    );
+  }, [selectedMetricId, targetYear, periodTargetsByMetric, metrics]);
+
+  const applyDefaultToAllPeriods = () => {
+    if (!defaultTarget.trim()) return;
+    const next: Record<string, string> = {};
+    for (const slot of periodSlots) {
+      next[slot.key] = defaultTarget;
+    }
+    setPeriodTargets(next);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -138,13 +187,39 @@ export function SetMetricTargetsTab({
         .from("metrics")
         .update({
           cadence,
-          target_value: targetValue ? parseFloat(targetValue) : null,
+          target_value: defaultTarget ? parseFloat(defaultTarget) : null,
           target_direction: targetDirection,
           target_label: targetLabel.trim() || null,
         })
         .eq("id", selectedMetricId);
 
       if (updateError) throw updateError;
+
+      for (const slot of periodSlots) {
+        const raw = periodTargets[slot.key]?.trim();
+        if (raw) {
+          const { error: upsertError } = await supabase
+            .from("metric_period_targets")
+            .upsert(
+              {
+                metric_id: selectedMetricId,
+                period_start: slot.period_start,
+                period_end: slot.period_end,
+                target_value: parseFloat(raw),
+              },
+              { onConflict: "metric_id,period_start,period_end" }
+            );
+          if (upsertError) throw upsertError;
+        } else {
+          const { error: deleteError } = await supabase
+            .from("metric_period_targets")
+            .delete()
+            .eq("metric_id", selectedMetricId)
+            .eq("period_start", slot.period_start)
+            .eq("period_end", slot.period_end);
+          if (deleteError) throw deleteError;
+        }
+      }
 
       setSuccess(true);
       onSaved?.();
@@ -205,6 +280,11 @@ export function SetMetricTargetsTab({
               onChange={setMetricOwnerFilter}
               metrics={metrics}
             />
+            <TierFilter
+              value={tierFilter}
+              onChange={setTierFilter}
+              metrics={metrics}
+            />
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto max-h-[32rem] overflow-y-auto">
@@ -242,6 +322,7 @@ export function SetMetricTargetsTab({
                       {m.department_owner
                         ? ` · ${titleCase(m.department_owner)}`
                         : ""}
+                      {m.tier ? ` · ${normalizeTier(m.tier)}` : ""}
                       {m.owner ? ` · ${titleCase(m.owner)}` : ""}
                     </p>
                   </td>
@@ -249,7 +330,10 @@ export function SetMetricTargetsTab({
                     {cadenceLabel(m.cadence)}
                   </td>
                   <td className="py-2.5 pl-2 text-wg-gold font-medium whitespace-nowrap">
-                    {targetSummary(m)}
+                    {targetSummaryForMetric(
+                      m,
+                      periodTargetsByMetric[m.metric_id]
+                    )}
                   </td>
                 </tr>
               ))}
@@ -304,6 +388,25 @@ export function SetMetricTargetsTab({
             )}
 
             <div className="space-y-2">
+              <Label htmlFor="targetYear">Target Year</Label>
+              <Select
+                value={String(targetYear)}
+                onValueChange={(v) => setTargetYear(parseInt(v, 10))}
+              >
+                <SelectTrigger id="targetYear">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailableYears(entriesByMetric).map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="cadence">Reporting Frequency</Label>
               <Select
                 value={cadence}
@@ -328,25 +431,81 @@ export function SetMetricTargetsTab({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="targetValue">Target Value</Label>
-              <Input
-                id="targetValue"
-                type="number"
-                step="any"
-                placeholder={
-                  selectedMetric
-                    ? `e.g. ${selectedMetric.value_type === "percentage" ? "90" : "1.75"}`
-                    : "Enter target"
-                }
-                value={targetValue}
-                onChange={(e) => setTargetValue(e.target.value)}
-              />
+              <Label htmlFor="defaultTarget">Default Target (fallback)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="defaultTarget"
+                  type="number"
+                  step="any"
+                  placeholder={
+                    selectedMetric
+                      ? `e.g. ${selectedMetric.value_type === "percentage" ? "90" : "1.75"}`
+                      : "Enter default"
+                  }
+                  value={defaultTarget}
+                  onChange={(e) => setDefaultTarget(e.target.value)}
+                />
+                {periodSlots.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={applyDefaultToAllPeriods}
+                    disabled={!defaultTarget.trim()}
+                    className="shrink-0"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Apply to all
+                  </Button>
+                )}
+              </div>
               {selectedMetric && (
                 <p className="text-xs text-wg-muted">
-                  Value type: {titleCase(selectedMetric.value_type)}
+                  Used when a specific period has no target set · Value type:{" "}
+                  {titleCase(selectedMetric.value_type)}
                 </p>
               )}
             </div>
+
+            {periodSlots.length > 0 && (
+              <div className="space-y-2">
+                <Label>
+                  {cadence === "monthly"
+                    ? `Monthly Targets · ${targetYear}`
+                    : cadence === "quarterly"
+                      ? `Quarterly Targets · ${targetYear}`
+                      : `Annual Target · ${targetYear}`}
+                </Label>
+                <div
+                  className={`grid gap-2 ${
+                    periodSlots.length > 4 ? "grid-cols-2" : "grid-cols-1"
+                  }`}
+                >
+                  {periodSlots.map((slot) => (
+                    <div key={slot.key} className="space-y-1">
+                      <Label
+                        htmlFor={`target-${slot.key}`}
+                        className="text-xs text-wg-muted font-normal"
+                      >
+                        {slot.label}
+                      </Label>
+                      <Input
+                        id={`target-${slot.key}`}
+                        type="number"
+                        step="any"
+                        placeholder={defaultTarget || "—"}
+                        value={periodTargets[slot.key] ?? ""}
+                        onChange={(e) =>
+                          setPeriodTargets((prev) => ({
+                            ...prev,
+                            [slot.key]: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="targetDirection">Target Direction</Label>

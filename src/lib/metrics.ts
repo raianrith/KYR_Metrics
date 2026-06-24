@@ -109,6 +109,39 @@ export function filterMetricsByMetricOwner(
   return rows.filter((m) => m.department_owner === owner);
 }
 
+const TIER_ORDER = ["Tier 1", "Tier 2", "Tier 3", "NA", "Unassigned"];
+
+export function normalizeTier(tier: string | null | undefined): string {
+  const t = (tier ?? "").trim();
+  if (!t) return "Unassigned";
+  if (t.toUpperCase() === "NA") return "NA";
+  if (t.startsWith("Tier")) return t;
+  return `Tier ${t}`;
+}
+
+export function getMetricTiers(rows: MetricDashboardRow[]): string[] {
+  const tiers = [...new Set(rows.map((m) => normalizeTier(m.tier)))];
+  return tiers.sort((a, b) => {
+    const ai = TIER_ORDER.indexOf(a);
+    const bi = TIER_ORDER.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+}
+
+export function filterMetricsByTier(
+  rows: MetricDashboardRow[],
+  tier: string
+): MetricDashboardRow[] {
+  if (tier === "all") return rows;
+  if (tier === "unassigned") {
+    return rows.filter((m) => normalizeTier(m.tier) === "Unassigned");
+  }
+  return rows.filter((m) => normalizeTier(m.tier) === tier);
+}
+
 export function computeEntryStatus(
   actual: number,
   target: number | null,

@@ -1,4 +1,5 @@
-import type { CadenceType, MetricDashboardRow, MetricEntry } from "./types";
+import type { CadenceType, MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "./types";
+import { resolveDisplayTargetForFilter } from "./targets";
 
 export type Quarter = 1 | 2 | 3 | 4;
 
@@ -480,16 +481,19 @@ export function applyPeriodToMetrics(
 export function applyPeriodFilterToMetrics(
   metrics: MetricDashboardRow[],
   entriesByMetric: Record<string, MetricEntry[]>,
-  filter: PeriodFilter
+  filter: PeriodFilter,
+  periodTargetsByMetric?: Record<string, MetricPeriodTarget[]>
 ): MetricDashboardRow[] {
   return metrics.map((m) => {
     const entries = entriesByMetric[m.metric_id] ?? [];
     const snap = getPeriodSnapshotForFilter(entries, m.cadence, filter);
+    const periodTargets = periodTargetsByMetric?.[m.metric_id];
     return {
       ...m,
       latest_actual: snap.actual,
       latest_period_end: snap.periodEnd,
       latest_status: snap.status as MetricDashboardRow["latest_status"],
+      latest_target: resolveDisplayTargetForFilter(m, periodTargets, filter),
     };
   });
 }

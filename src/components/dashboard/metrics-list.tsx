@@ -15,7 +15,7 @@ import {
   getPeriodSnapshotForFilter,
   type PeriodFilter,
 } from "@/lib/periods";
-import type { CadenceType, MetricDashboardRow, MetricEntry } from "@/lib/types";
+import type { CadenceType, MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
 import { cadenceLabel, titleCase } from "@/lib/utils";
 import { Calendar, Users } from "lucide-react";
 
@@ -27,6 +27,7 @@ interface MetricsListProps {
   periodFilter: PeriodFilter;
   entriesByMetric: Record<string, MetricEntry[]>;
   chartEntriesByMetric: Record<string, MetricEntry[]>;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
 }
 
 const CADENCE_ACCENT: Record<CadenceType, string> = {
@@ -44,6 +45,7 @@ function MetricRows({
   showTeam = true,
   showEmployee = true,
   showCadence = false,
+  periodTargetsByMetric,
 }: {
   items: MetricDashboardRow[];
   periodFilter: PeriodFilter;
@@ -52,6 +54,7 @@ function MetricRows({
   showTeam?: boolean;
   showEmployee?: boolean;
   showCadence?: boolean;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
 }) {
   const chartYear =
     periodFilter.mode === "preset" ? periodFilter.year : undefined;
@@ -75,6 +78,7 @@ function MetricRows({
             valueColumnLabel={snap.valueColumnLabel}
             periodDetail={snap.label}
             chartYear={chartYear}
+            periodTargets={periodTargetsByMetric[m.metric_id]}
           />
         );
       })}
@@ -89,6 +93,7 @@ function CadenceSections({
   chartEntriesByMetric,
   showTeam,
   showEmployee,
+  periodTargetsByMetric,
 }: {
   metrics: MetricDashboardRow[];
   periodFilter: PeriodFilter;
@@ -96,6 +101,7 @@ function CadenceSections({
   chartEntriesByMetric: Record<string, MetricEntry[]>;
   showTeam?: boolean;
   showEmployee?: boolean;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
 }) {
   const cadenceGroups = groupByCadence(metrics);
 
@@ -129,6 +135,7 @@ function CadenceSections({
               chartEntriesByMetric={chartEntriesByMetric}
               showTeam={showTeam}
               showEmployee={showEmployee}
+              periodTargetsByMetric={periodTargetsByMetric}
             />
           </div>
         </section>
@@ -147,6 +154,7 @@ function MetricsGroupCard({
   showTeam,
   showEmployee,
   headerExtra,
+  periodTargetsByMetric,
 }: {
   title: string;
   description: string;
@@ -157,6 +165,7 @@ function MetricsGroupCard({
   showTeam?: boolean;
   showEmployee?: boolean;
   headerExtra?: ReactNode;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
 }) {
   return (
     <Card>
@@ -185,6 +194,7 @@ function MetricsGroupCard({
           chartEntriesByMetric={chartEntriesByMetric}
           showTeam={showTeam}
           showEmployee={showEmployee}
+          periodTargetsByMetric={periodTargetsByMetric}
         />
       </CardContent>
     </Card>
@@ -199,6 +209,7 @@ export function MetricsList({
   periodFilter,
   entriesByMetric,
   chartEntriesByMetric,
+  periodTargetsByMetric,
 }: MetricsListProps) {
   if (metrics.length === 0) {
     return (
@@ -223,6 +234,7 @@ export function MetricsList({
         periodFilter={periodFilter}
         entriesByMetric={entriesByMetric}
         chartEntriesByMetric={chartEntriesByMetric}
+        periodTargetsByMetric={periodTargetsByMetric}
       />
     );
   }
@@ -241,6 +253,7 @@ export function MetricsList({
             entriesByMetric={entriesByMetric}
             chartEntriesByMetric={chartEntriesByMetric}
             showTeam={false}
+            periodTargetsByMetric={periodTargetsByMetric}
           />
         ))}
       </div>
@@ -263,6 +276,7 @@ export function MetricsList({
             showTeam
             showEmployee={false}
             headerExtra={<Users className="w-4 h-4 text-wg-orange" />}
+            periodTargetsByMetric={periodTargetsByMetric}
           />
         ))}
       </div>
@@ -283,6 +297,7 @@ export function MetricsList({
             entriesByMetric={entriesByMetric}
             chartEntriesByMetric={chartEntriesByMetric}
             headerExtra={<Users className="w-4 h-4 text-wg-orange" />}
+            periodTargetsByMetric={periodTargetsByMetric}
           />
         ))}
       </div>

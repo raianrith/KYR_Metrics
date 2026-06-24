@@ -59,6 +59,16 @@ export interface Metric {
   updated_at: string;
 }
 
+export interface MetricPeriodTarget {
+  id: string;
+  metric_id: string;
+  period_start: string;
+  period_end: string;
+  target_value: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface MetricEntry {
   id: string;
   metric_id: string;
@@ -98,6 +108,7 @@ export interface MetricDashboardRow {
   latest_actual: number | null;
   latest_period_end: string | null;
   latest_status: EntryStatus | null;
+  latest_target?: number | null;
 }
 
 export interface MetricWithEntries extends MetricDashboardRow {

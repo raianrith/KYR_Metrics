@@ -1,7 +1,8 @@
 "use client";
 
-import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
+import type { MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
 import { buildTrendData } from "@/lib/metrics";
+import { resolveTargetValue } from "@/lib/targets";
 import { formatValue, statusColor, statusLabel, titleCase, fieldLabelClass } from "@/lib/utils";
 import {
   CartesianGrid,
@@ -18,22 +19,34 @@ interface MetricTrendChartProps {
   metric: MetricDashboardRow;
   entries: MetricEntry[];
   color?: string;
+  periodTargets?: MetricPeriodTarget[];
 }
 
 export function MetricTrendChart({
   metric,
   entries,
   color = "#ff6700",
+  periodTargets = [],
 }: MetricTrendChartProps) {
-  const defaultTarget = metric.target_value;
-
   const chartData = buildTrendData(entries, metric.value_type).map((point, i) => {
-    const entry = entries.filter((e) => e.actual_value !== null).sort(
-      (a, b) => new Date(a.period_end).getTime() - new Date(b.period_end).getTime()
-    )[i];
+    const entry = entries
+      .filter((e) => e.actual_value !== null)
+      .sort(
+        (a, b) =>
+          new Date(a.period_end).getTime() - new Date(b.period_end).getTime()
+      )[i];
+    const resolvedTarget = entry
+      ? resolveTargetValue(
+          metric,
+          entry.period_start,
+          entry.period_end,
+          periodTargets,
+          entry.target_value
+        )
+      : metric.target_value;
     return {
       ...point,
-      target: point.target ?? defaultTarget,
+      target: point.target ?? resolvedTarget,
       status: entry?.status,
     };
   });
@@ -121,7 +134,11 @@ export function MetricTrendChart({
         </ResponsiveContainer>
       </div>
 
-      <EntryHistoryTable metric={metric} entries={entries} />
+      <EntryHistoryTable
+        metric={metric}
+        entries={entries}
+        periodTargets={periodTargets}
+      />
     </div>
   );
 }
@@ -129,9 +146,11 @@ export function MetricTrendChart({
 function EntryHistoryTable({
   metric,
   entries,
+  periodTargets = [],
 }: {
   metric: MetricDashboardRow;
   entries: MetricEntry[];
+  periodTargets?: MetricPeriodTarget[];
 }) {
   const sorted = [...entries].sort(
     (a, b) => new Date(b.period_end).getTime() - new Date(a.period_end).getTime()
@@ -181,7 +200,13 @@ function EntryHistoryTable({
               </td>
               <td className="px-3 py-2 text-wg-muted">
                 {formatValue(
-                  entry.target_value ?? metric.target_value,
+                  resolveTargetValue(
+                    metric,
+                    entry.period_start,
+                    entry.period_end,
+                    periodTargets,
+                    entry.target_value
+                  ),
                   metric.value_type
                 )}
               </td>

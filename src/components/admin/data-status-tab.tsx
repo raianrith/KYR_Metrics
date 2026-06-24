@@ -12,7 +12,8 @@ import {
   getAvailableYears,
 } from "@/lib/periods";
 import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
-import { filterMetricsByMetricOwner } from "@/lib/metrics";
+import { TierFilter } from "@/components/shared/tier-filter";
+import { filterMetricsByMetricOwner, filterMetricsByTier, normalizeTier } from "@/lib/metrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cadenceLabel, fieldLabelClass, formatValue, statusColor, statusLabel, titleCase } from "@/lib/utils";
 import { CheckCircle2, Circle, CircleDashed, Filter } from "lucide-react";
@@ -42,6 +43,7 @@ export function DataStatusTab({
 }: DataStatusTabProps) {
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const years = getAvailableYears(entriesByMetric);
@@ -53,6 +55,7 @@ export function DataStatusTab({
       rows = rows.filter((m) => m.team === teamFilter);
     }
     rows = filterMetricsByMetricOwner(rows, metricOwnerFilter);
+    rows = filterMetricsByTier(rows, tierFilter);
 
     return rows.filter((m) => {
       if (statusFilter === "all") return true;
@@ -90,7 +93,7 @@ export function DataStatusTab({
       if (statusFilter === "complete") return allComplete;
       return true;
     });
-  }, [metrics, entriesByMetric, year, teamFilter, metricOwnerFilter, statusFilter]);
+  }, [metrics, entriesByMetric, year, teamFilter, metricOwnerFilter, tierFilter, statusFilter]);
 
   const grid = getCoverageGrid(filteredMetrics, entriesByMetric, year);
 
@@ -173,6 +176,11 @@ export function DataStatusTab({
                 onChange={setMetricOwnerFilter}
                 metrics={metrics}
               />
+              <TierFilter
+                value={tierFilter}
+                onChange={setTierFilter}
+                metrics={metrics}
+              />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Status" />
@@ -214,6 +222,7 @@ export function DataStatusTab({
                     <p className="font-medium text-wg-charcoal">{titleCase(m.metric_name)}</p>
                     <p className="text-xs text-wg-muted">
                       {titleCase(m.team)} · {titleCase(m.role)}
+                      {m.tier ? ` · ${normalizeTier(m.tier)}` : ""}
                       {m.owner ? ` · ${titleCase(m.owner)}` : ""}
                     </p>
                   </td>

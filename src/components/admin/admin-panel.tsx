@@ -6,7 +6,7 @@ import { DataStatusTab } from "@/components/admin/data-status-tab";
 import { SetMetricTargetsTab } from "@/components/admin/set-metric-targets-tab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Quarter } from "@/lib/periods";
-import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
+import type { MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
 import { ClipboardList, Database, PlusCircle, Target } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,9 +14,14 @@ import { useState } from "react";
 interface AdminPanelProps {
   metrics: MetricDashboardRow[];
   entriesByMetric: Record<string, MetricEntry[]>;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
 }
 
-export function AdminPanel({ metrics, entriesByMetric }: AdminPanelProps) {
+export function AdminPanel({
+  metrics,
+  entriesByMetric,
+  periodTargetsByMetric,
+}: AdminPanelProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("targets");
   const [statusYear, setStatusYear] = useState(new Date().getFullYear());
@@ -68,13 +73,19 @@ export function AdminPanel({ metrics, entriesByMetric }: AdminPanelProps) {
         </TabsList>
 
         <TabsContent value="targets">
-          <SetMetricTargetsTab metrics={metrics} onSaved={handleSaved} />
+          <SetMetricTargetsTab
+            metrics={metrics}
+            entriesByMetric={entriesByMetric}
+            periodTargetsByMetric={periodTargetsByMetric}
+            onSaved={handleSaved}
+          />
         </TabsContent>
 
         <TabsContent value="add">
           <AddEntryTab
             metrics={metrics}
             entriesByMetric={entriesByMetric}
+            periodTargetsByMetric={periodTargetsByMetric}
             prefill={prefill}
             onSaved={handleSaved}
           />

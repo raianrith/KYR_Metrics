@@ -22,10 +22,12 @@ import {
   monthsInQuarter,
 } from "@/lib/periods";
 import { createClient } from "@/lib/supabase/client";
-import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
+import type { MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
 import { formatMetricOptionLabel } from "@/lib/metrics-catalog";
-import { filterMetricsByMetricOwner } from "@/lib/metrics";
+import { filterMetricsByMetricOwner, filterMetricsByTier, normalizeTier } from "@/lib/metrics";
+import { resolveTargetValue } from "@/lib/targets";
 import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
+import { TierFilter } from "@/components/shared/tier-filter";
 import { cadenceLabel, fieldLabelClass, formatValue, titleCase } from "@/lib/utils";
 import { CheckCircle2, Loader2, Pencil, Plus, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -33,6 +35,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 interface AddEntryTabProps {
   metrics: MetricDashboardRow[];
   entriesByMetric: Record<string, MetricEntry[]>;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
   prefill?: { metricId: string; year: number; quarter: Quarter } | null;
   onSaved?: () => void;
 }
@@ -40,6 +43,7 @@ interface AddEntryTabProps {
 export function AddEntryTab({
   metrics,
   entriesByMetric,
+  periodTargetsByMetric,
   prefill,
   onSaved,
 }: AddEntryTabProps) {
@@ -47,6 +51,7 @@ export function AddEntryTab({
   const [teamFilter, setTeamFilter] = useState("all");
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState("all");
   const [year, setYear] = useState(new Date().getFullYear());
   const [quarter, setQuarter] = useState<Quarter>(1);
   const [month, setMonth] = useState<number>(1);
@@ -77,12 +82,15 @@ export function AddEntryTab({
     if (metricOwnerFilter !== "all") {
       source = filterMetricsByMetricOwner(source, metricOwnerFilter);
     }
+    if (tierFilter !== "all") {
+      source = filterMetricsByTier(source, tierFilter);
+    }
     return [
       ...new Set(
         source.map((m) => m.owner).filter((name): name is string => Boolean(name))
       ),
     ].sort();
-  }, [metrics, teamFilter, metricOwnerFilter]);
+  }, [metrics, teamFilter, metricOwnerFilter, tierFilter]);
 
   const filteredMetrics = useMemo(() => {
     return metrics.filter((m) => {
@@ -96,9 +104,16 @@ export function AddEntryTab({
           return false;
         }
       }
+      if (tierFilter !== "all") {
+        if (tierFilter === "unassigned") {
+          if (normalizeTier(m.tier) !== "Unassigned") return false;
+        } else if (normalizeTier(m.tier) !== tierFilter) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [metrics, teamFilter, employeeFilter, metricOwnerFilter]);
+  }, [metrics, teamFilter, employeeFilter, metricOwnerFilter, tierFilter]);
 
   const employees = useMemo(
     () =>
@@ -161,18 +176,21 @@ export function AddEntryTab({
         existing = inQ[inQ.length - 1];
       }
 
+      const periodTargets = periodTargetsByMetric[metricId] ?? [];
+
       if (existing) {
         setEditingEntryId(existing.id);
         setActualValue(
           existing.actual_value != null ? String(existing.actual_value) : ""
         );
-        setTargetValue(
-          existing.target_value != null
-            ? String(existing.target_value)
-            : metric.target_value != null
-              ? String(metric.target_value)
-              : ""
+        const resolved = resolveTargetValue(
+          metric,
+          existing.period_start,
+          existing.period_end,
+          periodTargets,
+          existing.target_value
         );
+        setTargetValue(resolved != null ? String(resolved) : "");
         setStatus(existing.status ?? "");
         setNotes(existing.notes ?? "");
         setEnteredBy(existing.entered_by ?? "");
@@ -181,16 +199,28 @@ export function AddEntryTab({
       } else {
         setEditingEntryId(null);
         setActualValue("");
-        setTargetValue(
-          metric.target_value != null ? String(metric.target_value) : ""
+        let bounds: { start: string; end: string };
+        if (metric.cadence === "monthly") {
+          bounds = getMonthBounds(y, m);
+        } else if (metric.cadence === "annual") {
+          bounds = { start: `${y}-01-01`, end: `${y}-12-31` };
+        } else {
+          bounds = getQuarterBounds(y, q);
+        }
+        const resolved = resolveTargetValue(
+          metric,
+          bounds.start,
+          bounds.end,
+          periodTargets
         );
+        setTargetValue(resolved != null ? String(resolved) : "");
         setStatus("");
         setNotes("");
         setEnteredBy(metric.owner ?? "");
         applyPeriodDates(y, q, m, metric);
       }
     },
-    [metrics, entriesByMetric, applyPeriodDates]
+    [metrics, entriesByMetric, periodTargetsByMetric, applyPeriodDates]
   );
 
   useEffect(() => {
@@ -235,16 +265,29 @@ export function AddEntryTab({
   }, [year, quarter, month, selectedMetricId, selectedMetric, loadExistingEntry]);
 
   const autoComputeStatus = useCallback(() => {
-    if (!selectedMetric || !actualValue) return;
+    if (!selectedMetric || !actualValue || !periodStart || !periodEnd) return;
     const actual = parseFloat(actualValue);
     const target = targetValue
       ? parseFloat(targetValue)
-      : selectedMetric.target_value;
-    if (isNaN(actual)) return;
+      : resolveTargetValue(
+          selectedMetric,
+          periodStart,
+          periodEnd,
+          periodTargetsByMetric[selectedMetricId] ?? []
+        );
+    if (isNaN(actual) || target == null) return;
     setStatus(
       computeEntryStatus(actual, target, selectedMetric.target_direction)
     );
-  }, [selectedMetric, actualValue, targetValue]);
+  }, [
+    selectedMetric,
+    actualValue,
+    targetValue,
+    periodStart,
+    periodEnd,
+    periodTargetsByMetric,
+    selectedMetricId,
+  ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -368,6 +411,15 @@ export function AddEntryTab({
                   triggerClassName="w-full"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="tierFilter">Tier</Label>
+                <TierFilter
+                  value={tierFilter}
+                  onChange={setTierFilter}
+                  metrics={metrics}
+                  triggerClassName="w-full"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -391,7 +443,7 @@ export function AddEntryTab({
               </Select>
               {filteredMetrics.length === 0 && (
                 <p className="text-xs text-wg-muted">
-                  No metrics match the selected team, team member, and metric owner.
+                  No metrics match the selected team, team member, metric owner, and tier.
                 </p>
               )}
             </div>
@@ -403,6 +455,10 @@ export function AddEntryTab({
                   {selectedMetric.department_owner
                     ? titleCase(selectedMetric.department_owner)
                     : "Unassigned"}
+                </p>
+                <p className="text-wg-muted">
+                  <span className="font-medium text-wg-charcoal">Tier:</span>{" "}
+                  {normalizeTier(selectedMetric.tier)}
                 </p>
                 <p className="text-wg-muted">
                   <span className="font-medium text-wg-charcoal">Team Member:</span>{" "}

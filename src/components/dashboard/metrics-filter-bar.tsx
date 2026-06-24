@@ -10,6 +10,7 @@ import {
 import type { CadenceType, MetricDashboardRow } from "@/lib/types";
 import { cadenceLabel, cn, titleCase } from "@/lib/utils";
 import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
+import { TierFilter } from "@/components/shared/tier-filter";
 import { Filter } from "lucide-react";
 
 export type MetricsGroupBy = "team" | "employee" | "metric_owner" | "all";
@@ -27,11 +28,13 @@ interface MetricsFilterBarProps {
   scope: string;
   cadence: MetricsCadenceFilter;
   metricOwner: string;
+  tier: string;
   metrics: MetricDashboardRow[];
   onGroupByChange: (value: MetricsGroupBy) => void;
   onScopeChange: (value: string) => void;
   onCadenceChange: (value: MetricsCadenceFilter) => void;
   onMetricOwnerChange: (value: string) => void;
+  onTierChange: (value: string) => void;
   className?: string;
 }
 
@@ -81,11 +84,13 @@ export function MetricsFilterBar({
   scope,
   cadence,
   metricOwner,
+  tier,
   metrics,
   onGroupByChange,
   onScopeChange,
   onCadenceChange,
   onMetricOwnerChange,
+  onTierChange,
   className,
 }: MetricsFilterBarProps) {
   const options = scopeOptions(groupBy, metrics);
@@ -162,6 +167,20 @@ export function MetricsFilterBar({
           onChange={onMetricOwnerChange}
           metrics={metrics}
           triggerClassName="w-[180px] h-9"
+        />
+      </div>
+
+      <div className="w-px h-6 bg-black/10 hidden sm:block" />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-medium text-wg-muted shrink-0">
+          Tier
+        </span>
+        <TierFilter
+          value={tier}
+          onChange={onTierChange}
+          metrics={metrics}
+          triggerClassName="w-[140px] h-9"
         />
       </div>
 

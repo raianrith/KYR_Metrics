@@ -3,7 +3,8 @@
 import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
 import { formatQuarterLabel, getQuarter } from "@/lib/periods";
 import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
-import { filterMetricsByMetricOwner } from "@/lib/metrics";
+import { TierFilter } from "@/components/shared/tier-filter";
+import { filterMetricsByMetricOwner, filterMetricsByTier, normalizeTier } from "@/lib/metrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatValue, statusColor, statusLabel, titleCase } from "@/lib/utils";
@@ -21,6 +22,7 @@ export function AllEntriesTab({
 }: AllEntriesTabProps) {
   const [search, setSearch] = useState("");
   const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
+  const [tierFilter, setTierFilter] = useState("all");
 
   const metricMap = useMemo(
     () => new Map(metrics.map((m) => [m.metric_id, m])),
@@ -51,6 +53,13 @@ export function AllEntriesTab({
         return owner === metricOwnerFilter;
       });
     }
+    if (tierFilter !== "all") {
+      rows = rows.filter((e) => {
+        const tier = normalizeTier(e.metric.tier);
+        if (tierFilter === "unassigned") return tier === "Unassigned";
+        return tier === tierFilter;
+      });
+    }
     if (!search.trim()) return rows;
     const q = search.toLowerCase();
     return rows.filter(
@@ -58,10 +67,11 @@ export function AllEntriesTab({
         e.metric.metric_name.toLowerCase().includes(q) ||
         e.metric.team.toLowerCase().includes(q) ||
         e.metric.department_owner?.toLowerCase().includes(q) ||
+        normalizeTier(e.metric.tier).toLowerCase().includes(q) ||
         e.entered_by?.toLowerCase().includes(q) ||
         e.notes?.toLowerCase().includes(q)
     );
-  }, [allEntries, search, metricOwnerFilter]);
+  }, [allEntries, search, metricOwnerFilter, tierFilter]);
 
   return (
     <Card>
@@ -79,6 +89,12 @@ export function AllEntriesTab({
               onChange={setMetricOwnerFilter}
               metrics={metrics}
               triggerClassName="w-full sm:w-[180px]"
+            />
+            <TierFilter
+              value={tierFilter}
+              onChange={setTierFilter}
+              metrics={metrics}
+              triggerClassName="w-full sm:w-[140px]"
             />
             <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-wg-muted" />
@@ -141,6 +157,9 @@ export function AllEntriesTab({
                       {titleCase(entry.metric.team)} · {titleCase(entry.metric.role)}
                       {entry.metric.department_owner
                         ? ` · ${titleCase(entry.metric.department_owner)}`
+                        : ""}
+                      {entry.metric.tier
+                        ? ` · ${normalizeTier(entry.metric.tier)}`
                         : ""}
                       {entry.metric.owner ? ` · ${titleCase(entry.metric.owner)}` : ""}
                     </p>

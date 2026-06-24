@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
+import { groupPeriodTargetsByMetric } from "@/lib/targets";
+import type { MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
 import { DEMO_ENTRIES, DEMO_METRICS_WITH_LATEST } from "@/lib/demo-data";
 
 export function groupEntriesByMetric(
@@ -22,6 +23,7 @@ export function groupEntriesByMetric(
 export async function getDashboardData(): Promise<{
   metrics: MetricDashboardRow[];
   entriesByMetric: Record<string, MetricEntry[]>;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
   isDemo: boolean;
   error?: string;
 }> {
@@ -32,27 +34,36 @@ export async function getDashboardData(): Promise<{
     return {
       metrics: DEMO_METRICS_WITH_LATEST,
       entriesByMetric: groupEntriesByMetric(DEMO_ENTRIES),
+      periodTargetsByMetric: {},
       isDemo: true,
     };
   }
 
   try {
     const supabase = await createClient();
-    const [metricsRes, entriesRes] = await Promise.all([
+    const [metricsRes, entriesRes, targetsRes] = await Promise.all([
       supabase.from("metric_dashboard").select("*").order("sort_order"),
       supabase
         .from("metric_entries")
         .select("*")
         .order("period_end", { ascending: true }),
+      supabase
+        .from("metric_period_targets")
+        .select("*")
+        .order("period_start", { ascending: true }),
     ]);
 
     if (metricsRes.error) throw metricsRes.error;
     if (entriesRes.error) throw entriesRes.error;
+    if (targetsRes.error) throw targetsRes.error;
 
     return {
       metrics: (metricsRes.data as MetricDashboardRow[]) ?? [],
       entriesByMetric: groupEntriesByMetric(
         (entriesRes.data as MetricEntry[]) ?? []
+      ),
+      periodTargetsByMetric: groupPeriodTargetsByMetric(
+        (targetsRes.data as MetricPeriodTarget[]) ?? []
       ),
       isDemo: false,
     };
@@ -60,6 +71,7 @@ export async function getDashboardData(): Promise<{
     return {
       metrics: DEMO_METRICS_WITH_LATEST,
       entriesByMetric: groupEntriesByMetric(DEMO_ENTRIES),
+      periodTargetsByMetric: {},
       isDemo: true,
       error: err instanceof Error ? err.message : "Database connection failed",
     };

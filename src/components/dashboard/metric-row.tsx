@@ -1,7 +1,8 @@
 "use client";
 
 import { MetricTrendChart } from "@/components/dashboard/metric-trend-chart";
-import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
+import type { MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
+import { resolveTargetValue } from "@/lib/targets";
 import {
   cadenceLabel,
   fieldLabelClass,
@@ -10,7 +11,7 @@ import {
   statusLabel,
   titleCase,
 } from "@/lib/utils";
-import { getTeamColor } from "@/lib/metrics";
+import { getTeamColor, normalizeTier } from "@/lib/metrics";
 import { ChevronDown, LineChart } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ interface MetricRowProps {
   valueColumnLabel?: string;
   periodDetail?: string;
   chartYear?: number;
+  periodTargets?: MetricPeriodTarget[];
 }
 
 export function MetricRow({
@@ -37,6 +39,7 @@ export function MetricRow({
   valueColumnLabel,
   periodDetail,
   chartYear,
+  periodTargets = [],
 }: MetricRowProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const teamColor = getTeamColor(metric.team);
@@ -82,6 +85,11 @@ export function MetricRow({
                     {titleCase(metric.department_owner)}
                   </span>
                 )}
+                {metric.tier && normalizeTier(metric.tier) !== "Unassigned" && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-wg-gold/10 text-wg-gold border border-wg-gold/20">
+                    {normalizeTier(metric.tier)}
+                  </span>
+                )}
                 <span className="text-xs text-wg-muted">
                   {titleCase(metric.role)}
                 </span>
@@ -125,9 +133,11 @@ export function MetricRow({
               <span className={fieldLabelClass}>Target</span>
               <span className="font-medium text-wg-charcoal">
                 {metric.target_label ??
-                  (metric.target_value !== null
-                    ? formatValue(metric.target_value, metric.value_type)
-                    : "—")}
+                  (metric.latest_target != null
+                    ? formatValue(metric.latest_target, metric.value_type)
+                    : metric.target_value !== null
+                      ? formatValue(metric.target_value, metric.value_type)
+                      : "—")}
               </span>
             </div>
 
@@ -170,6 +180,7 @@ export function MetricRow({
               metric={metric}
               entries={entries}
               color={teamColor === "#112721" ? "#ff6700" : teamColor}
+              periodTargets={periodTargets}
             />
           </div>
         </div>

@@ -3,12 +3,16 @@ import { DashboardView } from "@/components/dashboard/dashboard-view";
 import { SetupBanner } from "@/components/setup-banner";
 
 export default async function HomePage() {
-  const { metrics, entriesByMetric, isDemo, error } = await getDashboardData();
+  const { metrics, entriesByMetric, periodTargetsByMetric, isDemo, error } = await getDashboardData();
 
   return (
     <>
       {isDemo && <SetupBanner error={error} />}
-      <DashboardView metrics={metrics} entriesByMetric={entriesByMetric} />
+      <DashboardView
+        metrics={metrics}
+        entriesByMetric={entriesByMetric}
+        periodTargetsByMetric={periodTargetsByMetric}
+      />
     </>
   );
 }
