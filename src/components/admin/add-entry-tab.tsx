@@ -24,6 +24,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
 import { formatMetricOptionLabel } from "@/lib/metrics-catalog";
+import { filterMetricsByMetricOwner } from "@/lib/metrics";
+import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
 import { cadenceLabel, fieldLabelClass, formatValue, titleCase } from "@/lib/utils";
 import { CheckCircle2, Loader2, Pencil, Plus, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -44,6 +46,7 @@ export function AddEntryTab({
   const [selectedMetricId, setSelectedMetricId] = useState("");
   const [teamFilter, setTeamFilter] = useState("all");
   const [employeeFilter, setEmployeeFilter] = useState("all");
+  const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
   const [year, setYear] = useState(new Date().getFullYear());
   const [quarter, setQuarter] = useState<Quarter>(1);
   const [month, setMonth] = useState<number>(1);
@@ -67,25 +70,35 @@ export function AddEntryTab({
   );
 
   const filterEmployees = useMemo(() => {
-    const source =
-      teamFilter === "all"
-        ? metrics
-        : metrics.filter((m) => m.team === teamFilter);
+    let source = metrics;
+    if (teamFilter !== "all") {
+      source = source.filter((m) => m.team === teamFilter);
+    }
+    if (metricOwnerFilter !== "all") {
+      source = filterMetricsByMetricOwner(source, metricOwnerFilter);
+    }
     return [
       ...new Set(
         source.map((m) => m.owner).filter((name): name is string => Boolean(name))
       ),
     ].sort();
-  }, [metrics, teamFilter]);
+  }, [metrics, teamFilter, metricOwnerFilter]);
 
   const filteredMetrics = useMemo(() => {
     return metrics.filter((m) => {
       if (teamFilter !== "all" && m.team !== teamFilter) return false;
       if (employeeFilter === "unassigned") return !m.owner;
       if (employeeFilter !== "all" && m.owner !== employeeFilter) return false;
+      if (metricOwnerFilter !== "all") {
+        if (metricOwnerFilter === "unassigned") {
+          if (m.department_owner) return false;
+        } else if (m.department_owner !== metricOwnerFilter) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [metrics, teamFilter, employeeFilter]);
+  }, [metrics, teamFilter, employeeFilter, metricOwnerFilter]);
 
   const employees = useMemo(
     () =>
@@ -298,7 +311,7 @@ export function AddEntryTab({
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="teamFilter">Team</Label>
                 <Select
@@ -322,7 +335,7 @@ export function AddEntryTab({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="employeeFilter">Employee</Label>
+                <Label htmlFor="employeeFilter">Team Member</Label>
                 <Select
                   value={employeeFilter}
                   onValueChange={(value) => {
@@ -333,10 +346,10 @@ export function AddEntryTab({
                   }}
                 >
                   <SelectTrigger id="employeeFilter">
-                    <SelectValue placeholder="All Employees" />
+                    <SelectValue placeholder="All Team Members" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Employees</SelectItem>
+                    <SelectItem value="all">All Team Members</SelectItem>
                     <SelectItem value="unassigned">Unassigned</SelectItem>
                     {filterEmployees.map((employee) => (
                       <SelectItem key={employee} value={employee}>
@@ -345,6 +358,15 @@ export function AddEntryTab({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="metricOwnerFilter">Metric Owner</Label>
+                <MetricOwnerFilter
+                  value={metricOwnerFilter}
+                  onChange={setMetricOwnerFilter}
+                  metrics={metrics}
+                  triggerClassName="w-full"
+                />
               </div>
             </div>
 
@@ -369,7 +391,7 @@ export function AddEntryTab({
               </Select>
               {filteredMetrics.length === 0 && (
                 <p className="text-xs text-wg-muted">
-                  No metrics match the selected team and employee.
+                  No metrics match the selected team, team member, and metric owner.
                 </p>
               )}
             </div>
@@ -377,7 +399,13 @@ export function AddEntryTab({
             {selectedMetric && (
               <div className="rounded-sm bg-wg-light border border-black/5 p-4 text-sm space-y-1 font-body normal-case">
                 <p className="text-wg-muted">
-                  <span className="font-medium text-wg-charcoal">Employee:</span>{" "}
+                  <span className="font-medium text-wg-charcoal">Metric Owner:</span>{" "}
+                  {selectedMetric.department_owner
+                    ? titleCase(selectedMetric.department_owner)
+                    : "Unassigned"}
+                </p>
+                <p className="text-wg-muted">
+                  <span className="font-medium text-wg-charcoal">Team Member:</span>{" "}
                   {selectedMetric.owner ? selectedMetric.owner : "Unassigned"}
                 </p>
                 <p className="text-wg-muted">
@@ -530,7 +558,7 @@ export function AddEntryTab({
                 <Label htmlFor="enteredBy">Entered By</Label>
                 <Select value={enteredBy} onValueChange={setEnteredBy}>
                   <SelectTrigger id="enteredBy">
-                    <SelectValue placeholder="Select employee..." />
+                    <SelectValue placeholder="Select team member..." />
                   </SelectTrigger>
                   <SelectContent>
                     {employeeOptions.map((employee) => (

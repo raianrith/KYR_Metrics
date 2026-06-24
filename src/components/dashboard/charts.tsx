@@ -356,11 +356,11 @@ export function TeamOverviewChart({ rows }: TeamOverviewChartProps) {
   return <StatusBreakdownChart data={data} minBarWidth={88} />;
 }
 
-interface EmployeeOverviewChartProps {
+interface TeamMemberOverviewChartProps {
   rows: MetricDashboardRow[];
 }
 
-export function EmployeeOverviewChart({ rows }: EmployeeOverviewChartProps) {
+export function TeamMemberOverviewChart({ rows }: TeamMemberOverviewChartProps) {
   const data = buildStatusBreakdown(
     rows.filter((row) => row.owner),
     (row) => row.owner!

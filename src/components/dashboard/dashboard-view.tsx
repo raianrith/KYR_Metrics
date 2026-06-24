@@ -1,7 +1,7 @@
 "use client";
 
 import { PeriodSelector, type PeriodView } from "@/components/dashboard/period-selector";
-import { ChartLegend, CadencePeriodStatusCharts, EmployeeOverviewChart, StatusSummary, TeamOverviewChart } from "@/components/dashboard/charts";
+import { ChartLegend, CadencePeriodStatusCharts, StatusSummary, TeamMemberOverviewChart, TeamOverviewChart } from "@/components/dashboard/charts";
 import {
   filterMetricsByScope,
   MetricsFilterBar,
@@ -19,7 +19,7 @@ import {
   getPeriodLabel,
   getQuarterBounds,
 } from "@/lib/periods";
-import { computeStats, filterMetricsByCadence } from "@/lib/metrics";
+import { computeStats, filterMetricsByCadence, filterMetricsByMetricOwner } from "@/lib/metrics";
 import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
 import { formatNumber } from "@/lib/utils";
 import {
@@ -49,6 +49,7 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
   const [groupBy, setGroupBy] = useState<MetricsGroupBy>("team");
   const [scope, setScope] = useState("all");
   const [cadenceFilter, setCadenceFilter] = useState<MetricsCadenceFilter>("all");
+  const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
 
   const periodFilter = useMemo(
     () => buildPeriodFilter(year, quarter, customStart, customEnd),
@@ -62,12 +63,17 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
     [metrics, entriesByMetric, periodFilter]
   );
 
-  const stats = computeStats(periodMetrics);
+  const ownerFilteredMetrics = useMemo(
+    () => filterMetricsByMetricOwner(periodMetrics, metricOwnerFilter),
+    [periodMetrics, metricOwnerFilter]
+  );
+
+  const stats = computeStats(ownerFilteredMetrics);
 
   const filteredMetrics = useMemo(() => {
-    const scoped = filterMetricsByScope(periodMetrics, groupBy, scope);
+    const scoped = filterMetricsByScope(ownerFilteredMetrics, groupBy, scope);
     return filterMetricsByCadence(scoped, cadenceFilter);
-  }, [periodMetrics, groupBy, scope, cadenceFilter]);
+  }, [ownerFilteredMetrics, groupBy, scope, cadenceFilter]);
 
   const handleGroupByChange = (value: MetricsGroupBy) => {
     setGroupBy(value);
@@ -191,7 +197,7 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <TeamOverviewChart rows={periodMetrics} />
+            <TeamOverviewChart rows={ownerFilteredMetrics} />
             <ChartLegend />
           </CardContent>
         </Card>
@@ -214,13 +220,13 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
 
       <Card>
         <CardHeader>
-          <CardTitle>Employee Performance</CardTitle>
+          <CardTitle>Team Member Performance</CardTitle>
           <CardDescription>
-            Status breakdown by employee · {periodLabel}
+            Status breakdown by team member · {periodLabel}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <EmployeeOverviewChart rows={periodMetrics} />
+          <TeamMemberOverviewChart rows={ownerFilteredMetrics} />
           <ChartLegend />
         </CardContent>
       </Card>
@@ -235,7 +241,11 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
         </CardHeader>
         <CardContent>
           <CadencePeriodStatusCharts
-            metrics={metrics}
+            metrics={
+              metricOwnerFilter === "all"
+                ? metrics
+                : filterMetricsByMetricOwner(metrics, metricOwnerFilter)
+            }
             entriesByMetric={entriesByMetric}
             periodFilter={periodFilter}
           />
@@ -247,10 +257,12 @@ export function DashboardView({ metrics, entriesByMetric }: DashboardViewProps) 
           groupBy={groupBy}
           scope={scope}
           cadence={cadenceFilter}
+          metricOwner={metricOwnerFilter}
           metrics={periodMetrics}
           onGroupByChange={handleGroupByChange}
           onScopeChange={setScope}
           onCadenceChange={setCadenceFilter}
+          onMetricOwnerChange={setMetricOwnerFilter}
         />
 
         <MetricsList

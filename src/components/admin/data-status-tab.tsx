@@ -11,6 +11,8 @@ import {
   quarterMonthRange,
   getAvailableYears,
 } from "@/lib/periods";
+import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
+import { filterMetricsByMetricOwner } from "@/lib/metrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cadenceLabel, fieldLabelClass, formatValue, statusColor, statusLabel, titleCase } from "@/lib/utils";
 import { CheckCircle2, Circle, CircleDashed, Filter } from "lucide-react";
@@ -39,14 +41,20 @@ export function DataStatusTab({
   onJumpToEntry,
 }: DataStatusTabProps) {
   const [teamFilter, setTeamFilter] = useState<string>("all");
+  const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const years = getAvailableYears(entriesByMetric);
   const teams = [...new Set(metrics.map((m) => m.team))].sort();
 
   const filteredMetrics = useMemo(() => {
-    return metrics.filter((m) => {
-      if (teamFilter !== "all" && m.team !== teamFilter) return false;
+    let rows = metrics;
+    if (teamFilter !== "all") {
+      rows = rows.filter((m) => m.team === teamFilter);
+    }
+    rows = filterMetricsByMetricOwner(rows, metricOwnerFilter);
+
+    return rows.filter((m) => {
       if (statusFilter === "all") return true;
 
       const hasGap = QUARTERS.some((q) => {
@@ -82,13 +90,13 @@ export function DataStatusTab({
       if (statusFilter === "complete") return allComplete;
       return true;
     });
-  }, [metrics, entriesByMetric, year, teamFilter, statusFilter]);
+  }, [metrics, entriesByMetric, year, teamFilter, metricOwnerFilter, statusFilter]);
 
   const grid = getCoverageGrid(filteredMetrics, entriesByMetric, year);
 
   const quarterStats = QUARTERS.map((q) => ({
     quarter: q,
-    ...countCoverage(metrics, entriesByMetric, year, q),
+    ...countCoverage(filteredMetrics, entriesByMetric, year, q),
   }));
 
   return (
@@ -160,6 +168,11 @@ export function DataStatusTab({
                   ))}
                 </SelectContent>
               </Select>
+              <MetricOwnerFilter
+                value={metricOwnerFilter}
+                onChange={setMetricOwnerFilter}
+                metrics={metrics}
+              />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Status" />

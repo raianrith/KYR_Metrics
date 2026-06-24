@@ -2,6 +2,8 @@
 
 import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
 import { formatQuarterLabel, getQuarter } from "@/lib/periods";
+import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
+import { filterMetricsByMetricOwner } from "@/lib/metrics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatValue, statusColor, statusLabel, titleCase } from "@/lib/utils";
@@ -18,6 +20,7 @@ export function AllEntriesTab({
   entriesByMetric,
 }: AllEntriesTabProps) {
   const [search, setSearch] = useState("");
+  const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
 
   const metricMap = useMemo(
     () => new Map(metrics.map((m) => [m.metric_id, m])),
@@ -40,16 +43,25 @@ export function AllEntriesTab({
   }, [entriesByMetric, metricMap]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return allEntries;
+    let rows = allEntries;
+    if (metricOwnerFilter !== "all") {
+      rows = rows.filter((e) => {
+        const owner = e.metric.department_owner;
+        if (metricOwnerFilter === "unassigned") return !owner;
+        return owner === metricOwnerFilter;
+      });
+    }
+    if (!search.trim()) return rows;
     const q = search.toLowerCase();
-    return allEntries.filter(
+    return rows.filter(
       (e) =>
         e.metric.metric_name.toLowerCase().includes(q) ||
         e.metric.team.toLowerCase().includes(q) ||
+        e.metric.department_owner?.toLowerCase().includes(q) ||
         e.entered_by?.toLowerCase().includes(q) ||
         e.notes?.toLowerCase().includes(q)
     );
-  }, [allEntries, search]);
+  }, [allEntries, search, metricOwnerFilter]);
 
   return (
     <Card>
@@ -61,7 +73,14 @@ export function AllEntriesTab({
               {allEntries.length} entries across {metrics.length} metrics
             </CardDescription>
           </div>
-          <div className="relative w-full sm:w-72">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <MetricOwnerFilter
+              value={metricOwnerFilter}
+              onChange={setMetricOwnerFilter}
+              metrics={metrics}
+              triggerClassName="w-full sm:w-[180px]"
+            />
+            <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-wg-muted" />
             <Input
               placeholder="Search metrics, teams, notes..."
@@ -69,6 +88,7 @@ export function AllEntriesTab({
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
             />
+          </div>
           </div>
         </div>
       </CardHeader>
@@ -119,6 +139,9 @@ export function AllEntriesTab({
                     </p>
                     <p className="text-xs text-wg-muted">
                       {titleCase(entry.metric.team)} · {titleCase(entry.metric.role)}
+                      {entry.metric.department_owner
+                        ? ` · ${titleCase(entry.metric.department_owner)}`
+                        : ""}
                       {entry.metric.owner ? ` · ${titleCase(entry.metric.owner)}` : ""}
                     </p>
                     </td>

@@ -269,16 +269,16 @@ export function MetricsList({
     );
   }
 
-  if (groupBy === "supervisor") {
+  if (groupBy === "metric_owner") {
     const groups = groupByDepartmentOwner(metrics);
     return (
       <div className="space-y-4">
-        {groups.map(([supervisor, supMetrics]) => (
+        {groups.map(([owner, ownerMetrics]) => (
           <MetricsGroupCard
-            key={supervisor}
-            title={titleCase(supervisor)}
-            description={`Department Owner · ${periodLabel}`}
-            metrics={supMetrics}
+            key={owner}
+            title={titleCase(owner)}
+            description={`Metric Owner · ${periodLabel}`}
+            metrics={ownerMetrics}
             periodFilter={periodFilter}
             entriesByMetric={entriesByMetric}
             chartEntriesByMetric={chartEntriesByMetric}

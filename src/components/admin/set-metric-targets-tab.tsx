@@ -12,6 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatMetricOptionLabel } from "@/lib/metrics-catalog";
+import { filterMetricsByMetricOwner } from "@/lib/metrics";
+import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
 import { createClient } from "@/lib/supabase/client";
 import type {
   CadenceType,
@@ -53,6 +55,7 @@ export function SetMetricTargetsTab({
   const [search, setSearch] = useState("");
   const [teamFilter, setTeamFilter] = useState("all");
   const [employeeFilter, setEmployeeFilter] = useState("all");
+  const [metricOwnerFilter, setMetricOwnerFilter] = useState("all");
   const [selectedMetricId, setSelectedMetricId] = useState("");
   const [cadence, setCadence] = useState<CadenceType>("monthly");
   const [targetValue, setTargetValue] = useState("");
@@ -89,15 +92,23 @@ export function SetMetricTargetsTab({
           return false;
         }
       }
+      if (metricOwnerFilter !== "all") {
+        if (metricOwnerFilter === "unassigned") {
+          if (m.department_owner) return false;
+        } else if (m.department_owner !== metricOwnerFilter) {
+          return false;
+        }
+      }
       if (!q) return true;
       return (
         m.metric_name.toLowerCase().includes(q) ||
         m.team.toLowerCase().includes(q) ||
         m.role.toLowerCase().includes(q) ||
-        m.owner?.toLowerCase().includes(q)
+        m.owner?.toLowerCase().includes(q) ||
+        m.department_owner?.toLowerCase().includes(q)
       );
     });
-  }, [metrics, search, teamFilter, employeeFilter]);
+  }, [metrics, search, teamFilter, employeeFilter, metricOwnerFilter]);
 
   const selectedMetric = metrics.find((m) => m.metric_id === selectedMetricId);
 
@@ -156,7 +167,7 @@ export function SetMetricTargetsTab({
           </CardDescription>
           <div className="flex flex-wrap gap-2 pt-2">
             <Input
-              placeholder="Search metrics, teams, employees..."
+              placeholder="Search metrics, teams, team members, metric owners..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-xs"
@@ -177,10 +188,10 @@ export function SetMetricTargetsTab({
             </Select>
             <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
               <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Employee" />
+                <SelectValue placeholder="Team Member" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Employees</SelectItem>
+                <SelectItem value="all">All Team Members</SelectItem>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
                 {employees.map((e) => (
                   <SelectItem key={e} value={e}>
@@ -189,6 +200,11 @@ export function SetMetricTargetsTab({
                 ))}
               </SelectContent>
             </Select>
+            <MetricOwnerFilter
+              value={metricOwnerFilter}
+              onChange={setMetricOwnerFilter}
+              metrics={metrics}
+            />
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto max-h-[32rem] overflow-y-auto">
@@ -223,6 +239,9 @@ export function SetMetricTargetsTab({
                     </p>
                     <p className="text-xs text-wg-muted">
                       {titleCase(m.team)} · {titleCase(m.role)}
+                      {m.department_owner
+                        ? ` · ${titleCase(m.department_owner)}`
+                        : ""}
                       {m.owner ? ` · ${titleCase(m.owner)}` : ""}
                     </p>
                   </td>

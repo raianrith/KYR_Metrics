@@ -9,15 +9,16 @@ import {
 } from "@/components/ui/select";
 import type { CadenceType, MetricDashboardRow } from "@/lib/types";
 import { cadenceLabel, cn, titleCase } from "@/lib/utils";
+import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
 import { Filter } from "lucide-react";
 
-export type MetricsGroupBy = "team" | "employee" | "supervisor" | "all";
+export type MetricsGroupBy = "team" | "employee" | "metric_owner" | "all";
 export type MetricsCadenceFilter = "all" | CadenceType;
 
 const GROUP_LABELS: Record<MetricsGroupBy, string> = {
   team: "Team",
-  employee: "Employee",
-  supervisor: "Supervisor",
+  employee: "Team Member",
+  metric_owner: "Metric Owner",
   all: "All Metrics",
 };
 
@@ -25,10 +26,12 @@ interface MetricsFilterBarProps {
   groupBy: MetricsGroupBy;
   scope: string;
   cadence: MetricsCadenceFilter;
+  metricOwner: string;
   metrics: MetricDashboardRow[];
   onGroupByChange: (value: MetricsGroupBy) => void;
   onScopeChange: (value: string) => void;
   onCadenceChange: (value: MetricsCadenceFilter) => void;
+  onMetricOwnerChange: (value: string) => void;
   className?: string;
 }
 
@@ -58,15 +61,15 @@ function scopeOptions(
     return [all, ...employees.map((e) => ({ value: e, label: titleCase(e) }))];
   }
 
-  if (groupBy === "supervisor") {
-    const supervisors = [
+  if (groupBy === "metric_owner") {
+    const owners = [
       ...new Set(
         metrics.map((m) => m.department_owner).filter(Boolean) as string[]
       ),
     ].sort();
     return [
       all,
-      ...supervisors.map((s) => ({ value: s, label: titleCase(s) })),
+      ...owners.map((o) => ({ value: o, label: titleCase(o) })),
     ];
   }
 
@@ -77,10 +80,12 @@ export function MetricsFilterBar({
   groupBy,
   scope,
   cadence,
+  metricOwner,
   metrics,
   onGroupByChange,
   onScopeChange,
   onCadenceChange,
+  onMetricOwnerChange,
   className,
 }: MetricsFilterBarProps) {
   const options = scopeOptions(groupBy, metrics);
@@ -119,8 +124,8 @@ export function MetricsFilterBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="team">Team</SelectItem>
-            <SelectItem value="employee">Employee</SelectItem>
-            <SelectItem value="supervisor">Supervisor</SelectItem>
+            <SelectItem value="employee">Team Member</SelectItem>
+            <SelectItem value="metric_owner">Metric Owner</SelectItem>
             <SelectItem value="all">All Metrics</SelectItem>
           </SelectContent>
         </Select>
@@ -144,6 +149,20 @@ export function MetricsFilterBar({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="w-px h-6 bg-black/10 hidden sm:block" />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-medium text-wg-muted shrink-0">
+          Metric Owner
+        </span>
+        <MetricOwnerFilter
+          value={metricOwner}
+          onChange={onMetricOwnerChange}
+          metrics={metrics}
+          triggerClassName="w-[180px] h-9"
+        />
       </div>
 
       <div className="w-px h-6 bg-black/10 hidden sm:block" />
@@ -188,7 +207,7 @@ export function filterMetricsByScope(
       return metrics.filter((m) => m.team === scope);
     case "employee":
       return metrics.filter((m) => m.owner === scope);
-    case "supervisor":
+    case "metric_owner":
       return metrics.filter((m) => m.department_owner === scope);
     default:
       return metrics;

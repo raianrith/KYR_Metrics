@@ -90,6 +90,25 @@ export function filterMetricsByCadence(
   return rows.filter((r) => r.cadence === cadence);
 }
 
+export function getMetricOwners(rows: MetricDashboardRow[]): string[] {
+  return [
+    ...new Set(
+      rows.map((m) => m.department_owner).filter((name): name is string =>
+        Boolean(name)
+      )
+    ),
+  ].sort();
+}
+
+export function filterMetricsByMetricOwner(
+  rows: MetricDashboardRow[],
+  owner: string
+): MetricDashboardRow[] {
+  if (owner === "all") return rows;
+  if (owner === "unassigned") return rows.filter((m) => !m.department_owner);
+  return rows.filter((m) => m.department_owner === owner);
+}
+
 export function computeEntryStatus(
   actual: number,
   target: number | null,

@@ -77,6 +77,11 @@ export function MetricRow({
                     {titleCase(metric.owner)}
                   </span>
                 )}
+                {metric.department_owner && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-wg-suede/10 text-wg-suede border border-wg-suede/20">
+                    {titleCase(metric.department_owner)}
+                  </span>
+                )}
                 <span className="text-xs text-wg-muted">
                   {titleCase(metric.role)}
                 </span>
@@ -107,7 +112,7 @@ export function MetricRow({
               {!showCadence && (
                 <>
                   <span className={fieldLabelClass}>
-                    {showEmployee ? "Employee" : "Owner"}
+                    {showEmployee ? "Team Member" : "Owner"}
                   </span>
                   <span className="font-medium text-wg-charcoal">
                     {titleCase(metric.owner ?? metric.department_owner)}
