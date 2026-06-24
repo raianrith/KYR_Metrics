@@ -8,6 +8,7 @@ export default async function AdminPage() {
   return (
     <>
       {isDemo && <SetupBanner error={error} />}
+      {!isDemo && error && <SetupBanner error={error} isDemo={false} />}
       <AdminPanel
         metrics={metrics}
         entriesByMetric={entriesByMetric}

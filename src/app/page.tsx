@@ -8,6 +8,7 @@ export default async function HomePage() {
   return (
     <>
       {isDemo && <SetupBanner error={error} />}
+      {!isDemo && error && <SetupBanner error={error} isDemo={false} />}
       <DashboardView
         metrics={metrics}
         entriesByMetric={entriesByMetric}

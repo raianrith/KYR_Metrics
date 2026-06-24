@@ -3,6 +3,21 @@ import { groupPeriodTargetsByMetric } from "@/lib/targets";
 import type { MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
 import { DEMO_ENTRIES, DEMO_METRICS_WITH_LATEST } from "@/lib/demo-data";
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return "Database connection failed";
+}
+
+function isMissingPeriodTargetsTable(err: { code?: string; message?: string }) {
+  return (
+    err.code === "PGRST205" ||
+    (err.message?.includes("metric_period_targets") ?? false)
+  );
+}
+
 export function groupEntriesByMetric(
   entries: MetricEntry[]
 ): Record<string, MetricEntry[]> {
@@ -55,17 +70,26 @@ export async function getDashboardData(): Promise<{
 
     if (metricsRes.error) throw metricsRes.error;
     if (entriesRes.error) throw entriesRes.error;
-    if (targetsRes.error) throw targetsRes.error;
+
+    let periodTargets: MetricPeriodTarget[] = [];
+    if (targetsRes.error) {
+      if (!isMissingPeriodTargetsTable(targetsRes.error)) {
+        throw targetsRes.error;
+      }
+    } else {
+      periodTargets = (targetsRes.data as MetricPeriodTarget[]) ?? [];
+    }
 
     return {
       metrics: (metricsRes.data as MetricDashboardRow[]) ?? [],
       entriesByMetric: groupEntriesByMetric(
         (entriesRes.data as MetricEntry[]) ?? []
       ),
-      periodTargetsByMetric: groupPeriodTargetsByMetric(
-        (targetsRes.data as MetricPeriodTarget[]) ?? []
-      ),
+      periodTargetsByMetric: groupPeriodTargetsByMetric(periodTargets),
       isDemo: false,
+      error: targetsRes.error
+        ? "Run migration 007_metric_period_targets.sql in Supabase to enable per-period targets."
+        : undefined,
     };
   } catch (err) {
     return {
@@ -73,7 +97,7 @@ export async function getDashboardData(): Promise<{
       entriesByMetric: groupEntriesByMetric(DEMO_ENTRIES),
       periodTargetsByMetric: {},
       isDemo: true,
-      error: err instanceof Error ? err.message : "Database connection failed",
+      error: getErrorMessage(err),
     };
   }
 }
