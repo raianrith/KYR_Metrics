@@ -26,9 +26,10 @@ import type { MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/
 import { formatMetricOptionLabel } from "@/lib/metrics-catalog";
 import { filterMetricsByMetricOwner, filterMetricsByTier, normalizeTier } from "@/lib/metrics";
 import { resolveTargetValue } from "@/lib/targets";
+import { cadenceLabel, fieldLabelClass, formatTargetDisplay, titleCase } from "@/lib/utils";
 import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
 import { TierFilter } from "@/components/shared/tier-filter";
-import { cadenceLabel, fieldLabelClass, formatValue, titleCase } from "@/lib/utils";
+import { RenameMetricControl } from "@/components/admin/rename-metric-control";
 import { CheckCircle2, Loader2, Pencil, Plus, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -449,7 +450,12 @@ export function AddEntryTab({
             </div>
 
             {selectedMetric && (
-              <div className="rounded-sm bg-wg-light border border-black/5 p-4 text-sm space-y-1 font-body normal-case">
+              <div className="rounded-sm bg-wg-light border border-black/5 p-4 text-sm space-y-3 font-body normal-case">
+                <RenameMetricControl
+                  metric={selectedMetric}
+                  allMetrics={metrics}
+                  onRenamed={onSaved}
+                />
                 <p className="text-wg-muted">
                   <span className="font-medium text-wg-charcoal">Metric Owner:</span>{" "}
                   {selectedMetric.department_owner
@@ -476,13 +482,7 @@ export function AddEntryTab({
                 </p>
                 <p className="text-wg-muted">
                   <span className="font-medium text-wg-charcoal">Target:</span>{" "}
-                  {selectedMetric.target_label ??
-                    (selectedMetric.target_value !== null
-                      ? formatValue(
-                          selectedMetric.target_value,
-                          selectedMetric.value_type
-                        )
-                      : "—")}
+                  {formatTargetDisplay(selectedMetric)}
                 </p>
               </div>
             )}

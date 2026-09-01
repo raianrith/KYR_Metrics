@@ -8,7 +8,10 @@ import {
   groupByCadence,
   groupByDepartmentOwner,
   groupByEmployee,
+  groupByMetricName,
+  groupByRole,
   groupByTeam,
+  normalizeTier,
 } from "@/lib/metrics";
 import {
   getCadenceSectionDescription,
@@ -17,7 +20,7 @@ import {
 } from "@/lib/periods";
 import type { CadenceType, MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
 import { cadenceLabel, titleCase } from "@/lib/utils";
-import { Calendar, Users } from "lucide-react";
+import { Briefcase, Calendar, Users } from "lucide-react";
 
 interface MetricsListProps {
   metrics: MetricDashboardRow[];
@@ -45,6 +48,9 @@ function MetricRows({
   showTeam = true,
   showEmployee = true,
   showCadence = false,
+  showRole = true,
+  showDefinition = true,
+  titleAs = "metric",
   periodTargetsByMetric,
 }: {
   items: MetricDashboardRow[];
@@ -54,6 +60,9 @@ function MetricRows({
   showTeam?: boolean;
   showEmployee?: boolean;
   showCadence?: boolean;
+  showRole?: boolean;
+  showDefinition?: boolean;
+  titleAs?: "metric" | "member";
   periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
 }) {
   const chartYear =
@@ -75,6 +84,9 @@ function MetricRows({
             showTeam={showTeam}
             showEmployee={showEmployee}
             showCadence={showCadence}
+            showRole={showRole}
+            showDefinition={showDefinition}
+            titleAs={titleAs}
             valueColumnLabel={snap.valueColumnLabel}
             periodDetail={snap.label}
             chartYear={chartYear}
@@ -144,6 +156,126 @@ function CadenceSections({
   );
 }
 
+function MetricMemberGroups({
+  metrics,
+  periodFilter,
+  entriesByMetric,
+  chartEntriesByMetric,
+  showTeam,
+  periodTargetsByMetric,
+}: {
+  metrics: MetricDashboardRow[];
+  periodFilter: PeriodFilter;
+  entriesByMetric: Record<string, MetricEntry[]>;
+  chartEntriesByMetric: Record<string, MetricEntry[]>;
+  showTeam?: boolean;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
+}) {
+  const metricGroups = groupByMetricName(metrics);
+
+  return (
+    <div className="space-y-4">
+      {metricGroups.map(([name, rows]) => {
+        const sample = rows[0];
+        const tier = normalizeTier(sample.tier);
+        const memberCount = rows.length;
+
+        return (
+          <section key={name} className="space-y-2">
+            <div className="px-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h5 className="text-sm font-semibold text-wg-suede font-body tracking-normal">
+                  {titleCase(name)}
+                </h5>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-wg-light text-wg-charcoal border border-black/10">
+                  {cadenceLabel(sample.cadence)}
+                </span>
+                {tier !== "Unassigned" && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-wg-gold/10 text-wg-gold border border-wg-gold/20">
+                    {tier}
+                  </span>
+                )}
+                <span className="text-xs text-wg-muted">
+                  {memberCount} team member{memberCount === 1 ? "" : "s"}
+                </span>
+              </div>
+              <p className="text-xs text-wg-muted mt-1 font-body normal-case">
+                {sample.definition}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <MetricRows
+                items={rows}
+                periodFilter={periodFilter}
+                entriesByMetric={entriesByMetric}
+                chartEntriesByMetric={chartEntriesByMetric}
+                showTeam={showTeam}
+                showEmployee={false}
+                showRole={false}
+                showDefinition={false}
+                titleAs="member"
+                periodTargetsByMetric={periodTargetsByMetric}
+              />
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function RoleSections({
+  metrics,
+  periodFilter,
+  entriesByMetric,
+  chartEntriesByMetric,
+  showTeam,
+  periodTargetsByMetric,
+}: {
+  metrics: MetricDashboardRow[];
+  periodFilter: PeriodFilter;
+  entriesByMetric: Record<string, MetricEntry[]>;
+  chartEntriesByMetric: Record<string, MetricEntry[]>;
+  showTeam?: boolean;
+  periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
+}) {
+  const roleGroups = groupByRole(metrics);
+
+  return (
+    <div className="space-y-5">
+      {roleGroups.map(([role, roleMetrics]) => (
+        <section
+          key={role}
+          className="rounded-sm border border-black/5 border-l-4 border-l-wg-suede bg-wg-light/30"
+        >
+          <div className="px-4 py-3 border-b border-black/5 bg-white/80">
+            <div className="flex flex-wrap items-center gap-2">
+              <Briefcase className="w-4 h-4 text-wg-orange shrink-0" />
+              <h4 className="text-sm font-semibold text-wg-suede font-body tracking-normal">
+                {titleCase(role)}
+              </h4>
+              <span className="text-xs text-wg-muted">
+                {roleMetrics.length} metric
+                {roleMetrics.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          </div>
+          <div className="p-3">
+            <MetricMemberGroups
+              metrics={roleMetrics}
+              periodFilter={periodFilter}
+              entriesByMetric={entriesByMetric}
+              chartEntriesByMetric={chartEntriesByMetric}
+              showTeam={showTeam}
+              periodTargetsByMetric={periodTargetsByMetric}
+            />
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function MetricsGroupCard({
   title,
   description,
@@ -155,6 +287,7 @@ function MetricsGroupCard({
   showEmployee,
   headerExtra,
   periodTargetsByMetric,
+  nesting = "cadence",
 }: {
   title: string;
   description: string;
@@ -166,6 +299,7 @@ function MetricsGroupCard({
   showEmployee?: boolean;
   headerExtra?: ReactNode;
   periodTargetsByMetric: Record<string, MetricPeriodTarget[]>;
+  nesting?: "cadence" | "role" | "metric";
 }) {
   return (
     <Card>
@@ -187,15 +321,35 @@ function MetricsGroupCard({
         )}
       </CardHeader>
       <CardContent>
-        <CadenceSections
-          metrics={metrics}
-          periodFilter={periodFilter}
-          entriesByMetric={entriesByMetric}
-          chartEntriesByMetric={chartEntriesByMetric}
-          showTeam={showTeam}
-          showEmployee={showEmployee}
-          periodTargetsByMetric={periodTargetsByMetric}
-        />
+        {nesting === "role" ? (
+          <RoleSections
+            metrics={metrics}
+            periodFilter={periodFilter}
+            entriesByMetric={entriesByMetric}
+            chartEntriesByMetric={chartEntriesByMetric}
+            showTeam={showTeam}
+            periodTargetsByMetric={periodTargetsByMetric}
+          />
+        ) : nesting === "metric" ? (
+          <MetricMemberGroups
+            metrics={metrics}
+            periodFilter={periodFilter}
+            entriesByMetric={entriesByMetric}
+            chartEntriesByMetric={chartEntriesByMetric}
+            showTeam={showTeam}
+            periodTargetsByMetric={periodTargetsByMetric}
+          />
+        ) : (
+          <CadenceSections
+            metrics={metrics}
+            periodFilter={periodFilter}
+            entriesByMetric={entriesByMetric}
+            chartEntriesByMetric={chartEntriesByMetric}
+            showTeam={showTeam}
+            showEmployee={showEmployee}
+            periodTargetsByMetric={periodTargetsByMetric}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -221,6 +375,30 @@ export function MetricsList({
     );
   }
 
+  return (
+    <MetricsListGroups
+      metrics={metrics}
+      groupBy={groupBy}
+      scope={scope}
+      periodLabel={periodLabel}
+      periodFilter={periodFilter}
+      entriesByMetric={entriesByMetric}
+      chartEntriesByMetric={chartEntriesByMetric}
+      periodTargetsByMetric={periodTargetsByMetric}
+    />
+  );
+}
+
+function MetricsListGroups({
+  metrics,
+  groupBy,
+  scope,
+  periodLabel,
+  periodFilter,
+  entriesByMetric,
+  chartEntriesByMetric,
+  periodTargetsByMetric,
+}: MetricsListProps) {
   if (groupBy === "all") {
     return (
       <MetricsGroupCard
@@ -253,6 +431,29 @@ export function MetricsList({
             entriesByMetric={entriesByMetric}
             chartEntriesByMetric={chartEntriesByMetric}
             showTeam={false}
+            nesting="role"
+            periodTargetsByMetric={periodTargetsByMetric}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (groupBy === "role") {
+    const groups = groupByRole(metrics);
+    return (
+      <div className="space-y-4">
+        {groups.map(([role, roleMetrics]) => (
+          <MetricsGroupCard
+            key={role}
+            title={titleCase(role)}
+            description={`${roleMetrics.length} metrics · ${periodLabel}`}
+            metrics={roleMetrics}
+            periodFilter={periodFilter}
+            entriesByMetric={entriesByMetric}
+            chartEntriesByMetric={chartEntriesByMetric}
+            headerExtra={<Briefcase className="w-4 h-4 text-wg-orange" />}
+            nesting="metric"
             periodTargetsByMetric={periodTargetsByMetric}
           />
         ))}

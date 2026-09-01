@@ -4,12 +4,14 @@ import { AddEntryTab } from "@/components/admin/add-entry-tab";
 import { AllEntriesTab } from "@/components/admin/all-entries-tab";
 import { DataStatusTab } from "@/components/admin/data-status-tab";
 import { SetMetricTargetsTab } from "@/components/admin/set-metric-targets-tab";
+import { Tier3MetricsTab } from "@/components/admin/tier-3-metrics-tab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { partitionByTier3 } from "@/lib/metrics";
 import type { Quarter } from "@/lib/periods";
 import type { MetricDashboardRow, MetricEntry, MetricPeriodTarget } from "@/lib/types";
-import { ClipboardList, Database, PlusCircle, Target } from "lucide-react";
+import { ClipboardList, Database, HelpCircle, PlusCircle, Target } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 interface AdminPanelProps {
   metrics: MetricDashboardRow[];
@@ -39,6 +41,11 @@ export function AdminPanel({
   const handleSaved = () => {
     router.refresh();
   };
+
+  const { primary, tier3 } = useMemo(
+    () => partitionByTier3(metrics),
+    [metrics]
+  );
 
   return (
     <div className="space-y-8">
@@ -70,11 +77,15 @@ export function AdminPanel({
             <Database className="w-4 h-4" />
             All Data
           </TabsTrigger>
+          <TabsTrigger value="tier3" className="gap-2">
+            <HelpCircle className="w-4 h-4" />
+            Tier 3{tier3.length > 0 ? ` (${tier3.length})` : ""}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="targets">
           <SetMetricTargetsTab
-            metrics={metrics}
+            metrics={primary}
             entriesByMetric={entriesByMetric}
             periodTargetsByMetric={periodTargetsByMetric}
             onSaved={handleSaved}
@@ -83,7 +94,7 @@ export function AdminPanel({
 
         <TabsContent value="add">
           <AddEntryTab
-            metrics={metrics}
+            metrics={primary}
             entriesByMetric={entriesByMetric}
             periodTargetsByMetric={periodTargetsByMetric}
             prefill={prefill}
@@ -93,7 +104,7 @@ export function AdminPanel({
 
         <TabsContent value="status">
           <DataStatusTab
-            metrics={metrics}
+            metrics={primary}
             entriesByMetric={entriesByMetric}
             year={statusYear}
             onYearChange={setStatusYear}
@@ -102,7 +113,11 @@ export function AdminPanel({
         </TabsContent>
 
         <TabsContent value="entries">
-          <AllEntriesTab metrics={metrics} entriesByMetric={entriesByMetric} />
+          <AllEntriesTab metrics={primary} entriesByMetric={entriesByMetric} />
+        </TabsContent>
+
+        <TabsContent value="tier3">
+          <Tier3MetricsTab metrics={tier3} onSaved={handleSaved} />
         </TabsContent>
       </Tabs>
     </div>

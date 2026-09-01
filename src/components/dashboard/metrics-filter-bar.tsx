@@ -13,11 +13,12 @@ import { MetricOwnerFilter } from "@/components/shared/metric-owner-filter";
 import { TierFilter } from "@/components/shared/tier-filter";
 import { Filter } from "lucide-react";
 
-export type MetricsGroupBy = "team" | "employee" | "metric_owner" | "all";
+export type MetricsGroupBy = "team" | "role" | "employee" | "metric_owner" | "all";
 export type MetricsCadenceFilter = "all" | CadenceType;
 
 const GROUP_LABELS: Record<MetricsGroupBy, string> = {
   team: "Team",
+  role: "Role",
   employee: "Team Member",
   metric_owner: "Metric Owner",
   all: "All Metrics",
@@ -55,6 +56,17 @@ function scopeOptions(
   if (groupBy === "team") {
     const teams = [...new Set(metrics.map((m) => m.team))].sort();
     return [all, ...teams.map((t) => ({ value: t, label: titleCase(t) }))];
+  }
+
+  if (groupBy === "role") {
+    const roles = [
+      ...new Map(
+        [...metrics]
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((m) => [m.role || "Unassigned", m.role || "Unassigned"] as const)
+      ).values(),
+    ];
+    return [all, ...roles.map((r) => ({ value: r, label: titleCase(r) }))];
   }
 
   if (groupBy === "employee") {
@@ -129,6 +141,7 @@ export function MetricsFilterBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="team">Team</SelectItem>
+            <SelectItem value="role">Role</SelectItem>
             <SelectItem value="employee">Team Member</SelectItem>
             <SelectItem value="metric_owner">Metric Owner</SelectItem>
             <SelectItem value="all">All Metrics</SelectItem>
@@ -224,6 +237,8 @@ export function filterMetricsByScope(
   switch (groupBy) {
     case "team":
       return metrics.filter((m) => m.team === scope);
+    case "role":
+      return metrics.filter((m) => (m.role || "Unassigned") === scope);
     case "employee":
       return metrics.filter((m) => m.owner === scope);
     case "metric_owner":

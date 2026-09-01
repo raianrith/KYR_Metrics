@@ -12,7 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatMetricOptionLabel } from "@/lib/metrics-catalog";
-import { filterMetricsByMetricOwner, filterMetricsByTier, normalizeTier } from "@/lib/metrics";
+import { normalizeTier } from "@/lib/metrics";
+import { RenameMetricControl } from "@/components/admin/rename-metric-control";
 import {
   getTargetPeriodSlots,
   periodTargetsForYear,
@@ -304,38 +305,13 @@ export function SetMetricTargetsTab({
             </thead>
             <tbody>
               {filtered.map((m) => (
-                <tr
+                <MetricTargetRow
                   key={m.metric_id}
-                  onClick={() => loadMetricIntoForm(m)}
-                  className={`border-b border-black/5 cursor-pointer transition-colors ${
-                    selectedMetricId === m.metric_id
-                      ? "bg-wg-orange/10"
-                      : "hover:bg-wg-light/80"
-                  }`}
-                >
-                  <td className="py-2.5 pr-3">
-                    <p className="font-medium text-wg-charcoal">
-                      {titleCase(m.metric_name)}
-                    </p>
-                    <p className="text-xs text-wg-muted">
-                      {titleCase(m.team)} · {titleCase(m.role)}
-                      {m.department_owner
-                        ? ` · ${titleCase(m.department_owner)}`
-                        : ""}
-                      {m.tier ? ` · ${normalizeTier(m.tier)}` : ""}
-                      {m.owner ? ` · ${titleCase(m.owner)}` : ""}
-                    </p>
-                  </td>
-                  <td className="py-2.5 px-2 text-wg-charcoal whitespace-nowrap">
-                    {cadenceLabel(m.cadence)}
-                  </td>
-                  <td className="py-2.5 pl-2 text-wg-gold font-medium whitespace-nowrap">
-                    {targetSummaryForMetric(
-                      m,
-                      periodTargetsByMetric[m.metric_id]
-                    )}
-                  </td>
-                </tr>
+                  metric={m}
+                  selected={selectedMetricId === m.metric_id}
+                  onSelect={() => loadMetricIntoForm(m)}
+                  periodTargets={periodTargetsByMetric[m.metric_id]}
+                />
               ))}
             </tbody>
           </table>
@@ -382,9 +358,16 @@ export function SetMetricTargetsTab({
             </div>
 
             {selectedMetric && (
-              <p className="text-xs text-wg-muted font-body normal-case rounded-sm bg-wg-light border border-black/5 p-3">
-                {selectedMetric.definition}
-              </p>
+              <div className="space-y-3">
+                <RenameMetricControl
+                  metric={selectedMetric}
+                  allMetrics={metrics}
+                  onRenamed={onSaved}
+                />
+                <p className="text-xs text-wg-muted font-body normal-case rounded-sm bg-wg-light border border-black/5 p-3">
+                  {selectedMetric.definition}
+                </p>
+              </div>
             )}
 
             <div className="space-y-2">
@@ -575,5 +558,46 @@ export function SetMetricTargetsTab({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function MetricTargetRow({
+  metric,
+  selected,
+  onSelect,
+  periodTargets,
+}: {
+  metric: MetricDashboardRow;
+  selected: boolean;
+  onSelect: () => void;
+  periodTargets?: MetricPeriodTarget[];
+}) {
+  return (
+    <tr
+      onClick={onSelect}
+      className={`border-b border-black/5 cursor-pointer transition-colors ${
+        selected ? "bg-wg-orange/10" : "hover:bg-wg-light/80"
+      }`}
+    >
+      <td className="py-2.5 pr-3">
+        <p className="font-medium text-wg-charcoal">
+          {titleCase(metric.metric_name)}
+        </p>
+        <p className="text-xs text-wg-muted">
+          {titleCase(metric.team)} · {titleCase(metric.role)}
+          {metric.department_owner
+            ? ` · ${titleCase(metric.department_owner)}`
+            : ""}
+          {metric.tier ? ` · ${normalizeTier(metric.tier)}` : ""}
+          {metric.owner ? ` · ${titleCase(metric.owner)}` : ""}
+        </p>
+      </td>
+      <td className="py-2.5 px-2 text-wg-charcoal whitespace-nowrap">
+        {cadenceLabel(metric.cadence)}
+      </td>
+      <td className="py-2.5 pl-2 text-wg-gold font-medium whitespace-nowrap">
+        {targetSummaryForMetric(metric, periodTargets)}
+      </td>
+    </tr>
   );
 }

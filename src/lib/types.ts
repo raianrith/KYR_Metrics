@@ -122,4 +122,5 @@ export interface DashboardStats {
   atRisk: number;
   notMet: number;
   pending: number;
+  onTrackPercent: number;
 }

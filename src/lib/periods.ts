@@ -145,6 +145,7 @@ function monthlyPeriodSnapshot(
   if (withValues.length === 0) {
     return {
       actual: null,
+      target: averageEntryTargets(relevant),
       status: "pending",
       periodEnd: relevant[relevant.length - 1]?.period_end ?? null,
       monthsEntered: 0,
@@ -163,6 +164,7 @@ function monthlyPeriodSnapshot(
 
   return {
     actual: avg,
+    target: averageEntryTargets(withValues),
     status: latest.status,
     periodEnd: latest.period_end,
     monthsEntered: periodsEntered,
@@ -294,6 +296,7 @@ export function getChartEntriesForFilter(
 
 export interface PeriodSnapshot {
   actual: number | null;
+  target?: number | null;
   status: string | null;
   periodEnd: string | null;
   monthsEntered?: number;
@@ -303,6 +306,14 @@ export interface PeriodSnapshot {
   label?: string;
   displayMode?: "average" | "point";
   valueColumnLabel?: string;
+}
+
+function averageEntryTargets(entries: MetricEntry[]): number | null {
+  const values = entries
+    .map((e) => e.target_value)
+    .filter((v): v is number => v !== null);
+  if (values.length === 0) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
 export const CADENCE_SECTION_ORDER: CadenceType[] = [
@@ -369,6 +380,7 @@ function pointPeriodSnapshot(
   const latest = relevant[relevant.length - 1];
   return {
     actual: latest.actual_value,
+    target: latest.target_value,
     status: latest.status,
     periodEnd: latest.period_end,
     entryCount: relevant.length,
@@ -400,6 +412,7 @@ function quarterlyYearSnapshot(
   const latest = withValues[withValues.length - 1];
   return {
     actual: latest.actual_value,
+    target: latest.target_value,
     status: latest.status,
     periodEnd: latest.period_end,
     entryCount: relevant.length,
@@ -493,7 +506,12 @@ export function applyPeriodFilterToMetrics(
       latest_actual: snap.actual,
       latest_period_end: snap.periodEnd,
       latest_status: snap.status as MetricDashboardRow["latest_status"],
-      latest_target: resolveDisplayTargetForFilter(m, periodTargets, filter),
+      latest_target: resolveDisplayTargetForFilter(
+        m,
+        periodTargets,
+        filter,
+        snap.target
+      ),
     };
   });
 }

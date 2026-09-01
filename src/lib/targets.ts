@@ -8,6 +8,7 @@ import {
   type PeriodFilter,
   QUARTERS,
 } from "./periods";
+import { formatTargetDisplay, formatValue } from "./utils";
 
 export interface TargetPeriodSlot {
   key: string;
@@ -114,7 +115,8 @@ function collectTargetValues(
 export function resolveDisplayTargetForFilter(
   metric: MetricDashboardRow,
   periodTargets: MetricPeriodTarget[] | undefined,
-  filter: PeriodFilter
+  filter: PeriodFilter,
+  entryTarget?: number | null
 ): number | null {
   const targets = periodTargets ?? [];
 
@@ -137,10 +139,12 @@ export function resolveDisplayTargetForFilter(
         if (value !== null) values.push(value);
         cursor.setMonth(cursor.getMonth() + 1);
       }
-      if (values.length === 0) return metric.target_value;
-      return values.reduce((sum, v) => sum + v, 0) / values.length;
+      if (values.length > 0) {
+        return values.reduce((sum, v) => sum + v, 0) / values.length;
+      }
+      return entryTarget ?? metric.target_value;
     }
-    return metric.target_value;
+    return entryTarget ?? metric.target_value;
   }
 
   const { year, quarter } = filter;
@@ -151,8 +155,10 @@ export function resolveDisplayTargetForFilter(
         ? Array.from({ length: 12 }, (_, i) => i + 1)
         : monthsInQuarter(quarter);
     const values = collectTargetValues(targets, year, months);
-    if (values.length === 0) return metric.target_value;
-    return values.reduce((sum, v) => sum + v, 0) / values.length;
+    if (values.length > 0) {
+      return values.reduce((sum, v) => sum + v, 0) / values.length;
+    }
+    return entryTarget ?? metric.target_value;
   }
 
   if (metric.cadence === "quarterly") {
@@ -161,12 +167,13 @@ export function resolveDisplayTargetForFilter(
         const bounds = getQuarterBounds(year, q);
         return findPeriodTarget(targets, bounds.start, bounds.end);
       }).filter((v): v is number => v !== null);
-      if (values.length === 0) return metric.target_value;
-      return values[values.length - 1];
+      if (values.length > 0) return values[values.length - 1];
+      return entryTarget ?? metric.target_value;
     }
     const bounds = getQuarterBounds(year, quarter);
     return (
       findPeriodTarget(targets, bounds.start, bounds.end) ??
+      entryTarget ??
       metric.target_value
     );
   }
@@ -174,11 +181,12 @@ export function resolveDisplayTargetForFilter(
   if (metric.cadence === "annual") {
     return (
       findPeriodTarget(targets, `${year}-01-01`, `${year}-12-31`) ??
+      entryTarget ??
       metric.target_value
     );
   }
 
-  return metric.target_value;
+  return entryTarget ?? metric.target_value;
 }
 
 export function periodTargetsForYear(
@@ -200,8 +208,6 @@ export function targetSummaryForMetric(
   metric: MetricDashboardRow,
   periodTargets?: MetricPeriodTarget[]
 ): string {
-  if (metric.target_label) return metric.target_label;
-
   const targets = periodTargets ?? [];
   const currentYear = new Date().getFullYear();
   const slots = getTargetPeriodSlots(
@@ -214,10 +220,16 @@ export function targetSummaryForMetric(
 
   if (values.length > 1) {
     const unique = [...new Set(values)];
-    if (unique.length === 1) return String(unique[0]);
-    return `${Math.min(...values)}–${Math.max(...values)}`;
+    if (unique.length === 1) {
+      return formatTargetDisplay({ ...metric, latest_target: unique[0] });
+    }
+    return `${formatValue(Math.min(...values), metric.value_type)}–${formatValue(
+      Math.max(...values),
+      metric.value_type
+    )}`;
   }
-  if (values.length === 1) return String(values[0]);
-  if (metric.target_value !== null) return String(metric.target_value);
-  return "—";
+  if (values.length === 1) {
+    return formatTargetDisplay({ ...metric, latest_target: values[0] });
+  }
+  return formatTargetDisplay(metric);
 }

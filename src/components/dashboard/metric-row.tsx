@@ -6,6 +6,7 @@ import { resolveTargetValue } from "@/lib/targets";
 import {
   cadenceLabel,
   fieldLabelClass,
+  formatTargetDisplay,
   formatValue,
   statusColor,
   statusLabel,
@@ -22,6 +23,9 @@ interface MetricRowProps {
   showTeam?: boolean;
   showEmployee?: boolean;
   showCadence?: boolean;
+  showRole?: boolean;
+  showDefinition?: boolean;
+  titleAs?: "metric" | "member";
   defaultExpanded?: boolean;
   valueColumnLabel?: string;
   periodDetail?: string;
@@ -35,6 +39,9 @@ export function MetricRow({
   showTeam = true,
   showEmployee = true,
   showCadence = false,
+  showRole = true,
+  showDefinition = true,
+  titleAs = "metric",
   defaultExpanded = false,
   valueColumnLabel,
   periodDetail,
@@ -64,8 +71,12 @@ export function MetricRow({
             style={{ backgroundColor: teamColor }}
           />
 
-          <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 items-center">
-            <div className="md:col-span-4">
+          <div
+            className={cn(
+              "flex-1 min-w-0 grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 items-center"
+            )}
+          >
+            <div className={titleAs === "member" ? "md:col-span-6" : "md:col-span-4"}>
               <div className="flex items-center gap-2 flex-wrap">
                 {showTeam && (
                   <span
@@ -75,24 +86,28 @@ export function MetricRow({
                     {titleCase(metric.team)}
                   </span>
                 )}
-                {showEmployee && metric.owner && (
+                {showEmployee && metric.owner && titleAs !== "member" && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-wg-light text-wg-charcoal border border-black/10">
                     {titleCase(metric.owner)}
                   </span>
                 )}
-                {metric.department_owner && (
+                {metric.department_owner && titleAs !== "member" && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-wg-suede/10 text-wg-suede border border-wg-suede/20">
                     {titleCase(metric.department_owner)}
                   </span>
                 )}
-                {metric.tier && normalizeTier(metric.tier) !== "Unassigned" && (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-wg-gold/10 text-wg-gold border border-wg-gold/20">
-                    {normalizeTier(metric.tier)}
+                {metric.tier &&
+                  normalizeTier(metric.tier) !== "Unassigned" &&
+                  titleAs !== "member" && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-wg-gold/10 text-wg-gold border border-wg-gold/20">
+                      {normalizeTier(metric.tier)}
+                    </span>
+                  )}
+                {showRole && (
+                  <span className="text-xs text-wg-muted">
+                    {titleCase(metric.role)}
                   </span>
                 )}
-                <span className="text-xs text-wg-muted">
-                  {titleCase(metric.role)}
-                </span>
                 {hasHistory && (
                   <span className="flex items-center gap-1 text-[10px] text-wg-muted">
                     <LineChart className="w-3 h-3" />
@@ -101,43 +116,44 @@ export function MetricRow({
                 )}
               </div>
               <h4 className="font-semibold text-wg-suede mt-1 truncate font-body tracking-normal">
-                {titleCase(metric.metric_name)}
+                {titleAs === "member"
+                  ? titleCase(metric.owner ?? "Unassigned")
+                  : titleCase(metric.metric_name)}
               </h4>
-              <p className="text-xs text-wg-muted line-clamp-1 mt-0.5 font-body normal-case">
-                {metric.definition}
-              </p>
+              {showDefinition && (
+                <p className="text-xs text-wg-muted line-clamp-1 mt-0.5 font-body normal-case">
+                  {metric.definition}
+                </p>
+              )}
             </div>
 
-            <div className="md:col-span-2 text-sm font-body">
-              {showCadence && (
-                <>
-                  <span className={fieldLabelClass}>Cadence</span>
-                  <span className="font-medium text-wg-charcoal">
-                    {cadenceLabel(metric.cadence)}
-                  </span>
-                </>
-              )}
-              {!showCadence && (
-                <>
-                  <span className={fieldLabelClass}>
-                    {showEmployee ? "Team Member" : "Owner"}
-                  </span>
-                  <span className="font-medium text-wg-charcoal">
-                    {titleCase(metric.owner ?? metric.department_owner)}
-                  </span>
-                </>
-              )}
-            </div>
+            {titleAs !== "member" && (
+              <div className="md:col-span-2 text-sm font-body">
+                {showCadence && (
+                  <>
+                    <span className={fieldLabelClass}>Cadence</span>
+                    <span className="font-medium text-wg-charcoal">
+                      {cadenceLabel(metric.cadence)}
+                    </span>
+                  </>
+                )}
+                {!showCadence && (
+                  <>
+                    <span className={fieldLabelClass}>
+                      {showEmployee ? "Team Member" : "Owner"}
+                    </span>
+                    <span className="font-medium text-wg-charcoal">
+                      {titleCase(metric.owner ?? metric.department_owner)}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="md:col-span-2 text-sm font-body">
               <span className={fieldLabelClass}>Target</span>
               <span className="font-medium text-wg-charcoal">
-                {metric.target_label ??
-                  (metric.latest_target != null
-                    ? formatValue(metric.latest_target, metric.value_type)
-                    : metric.target_value !== null
-                      ? formatValue(metric.target_value, metric.value_type)
-                      : "—")}
+                {formatTargetDisplay(metric)}
               </span>
             </div>
 

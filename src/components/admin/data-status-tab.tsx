@@ -1,7 +1,7 @@
 "use client";
 
 import type { MetricDashboardRow, MetricEntry } from "@/lib/types";
-import type { Quarter } from "@/lib/periods";
+import type { CoverageCell, Quarter } from "@/lib/periods";
 import {
   QUARTERS,
   countCoverage,
@@ -217,79 +217,97 @@ export function DataStatusTab({
             </thead>
             <tbody>
               {filteredMetrics.map((m) => (
-                <tr key={m.metric_id} className="border-b border-black/5">
-                  <td className="py-3 pr-4 sticky left-0 bg-white">
-                    <p className="font-medium text-wg-charcoal">{titleCase(m.metric_name)}</p>
-                    <p className="text-xs text-wg-muted">
-                      {titleCase(m.team)} · {titleCase(m.role)}
-                      {m.tier ? ` · ${normalizeTier(m.tier)}` : ""}
-                      {m.owner ? ` · ${titleCase(m.owner)}` : ""}
-                    </p>
-                  </td>
-                  {QUARTERS.map((q) => {
-                    const cell = grid[m.metric_id]?.[q];
-                    const snap = cell?.snapshot;
-                    if (!snap) return <td key={q} />;
-
-                    const isEmpty = snap.entryCount === 0;
-                    const isPartial = snap.entryCount > 0 && !snap.isComplete;
-                    const isComplete = snap.isComplete;
-
-                    return (
-                      <td key={q} className="py-2 px-1">
-                        <button
-                          type="button"
-                          onClick={() => onJumpToEntry(m.metric_id, q)}
-                          className={`w-full rounded-sm border p-2.5 text-center transition-all hover:shadow-sm ${
-                            isEmpty
-                              ? "border-dashed border-wg-muted/30 bg-wg-light/50 hover:border-wg-orange/50"
-                              : isPartial
-                                ? "border-wg-orange/30 bg-wg-orange/5 hover:border-wg-orange"
-                                : "border-wg-suede/20 bg-wg-suede/5 hover:border-wg-suede"
-                          }`}
-                        >
-                          <div className="flex justify-center mb-1">
-                            {isEmpty ? (
-                              <Circle className="w-4 h-4 text-wg-muted/50" />
-                            ) : isPartial ? (
-                              <CircleDashed className="w-4 h-4 text-wg-orange" />
-                            ) : (
-                              <CheckCircle2 className="w-4 h-4 text-wg-suede" />
-                            )}
-                          </div>
-                          {isEmpty ? (
-                            <span className="text-[10px] text-wg-muted">
-                              Missing
-                            </span>
-                          ) : (
-                            <>
-                              <p className="font-semibold text-wg-gold text-sm">
-                                {formatValue(snap.actual, m.value_type)}
-                              </p>
-                              {snap.label && (
-                                <p className="text-[10px] text-wg-muted mt-0.5">
-                                  {snap.label}
-                                </p>
-                              )}
-                              {snap.status && (
-                                <span
-                                  className={`inline-block mt-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-sm border ${statusColor(snap.status)}`}
-                                >
-                                  {statusLabel(snap.status)}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
+                <DataStatusMetricRow
+                  key={m.metric_id}
+                  metric={m}
+                  grid={grid}
+                  onJumpToEntry={onJumpToEntry}
+                />
               ))}
             </tbody>
           </table>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function DataStatusMetricRow({
+  metric,
+  grid,
+  onJumpToEntry,
+}: {
+  metric: MetricDashboardRow;
+  grid: Record<string, Record<Quarter, CoverageCell>>;
+  onJumpToEntry: (metricId: string, quarter: Quarter) => void;
+}) {
+  return (
+    <tr className="border-b border-black/5">
+      <td className="py-3 pr-4 sticky left-0 bg-white">
+        <p className="font-medium text-wg-charcoal">
+          {titleCase(metric.metric_name)}
+        </p>
+        <p className="text-xs text-wg-muted">
+          {titleCase(metric.team)} · {titleCase(metric.role)}
+          {metric.tier ? ` · ${normalizeTier(metric.tier)}` : ""}
+          {metric.owner ? ` · ${titleCase(metric.owner)}` : ""}
+        </p>
+      </td>
+      {QUARTERS.map((q) => {
+        const cell = grid[metric.metric_id]?.[q];
+        const snap = cell?.snapshot;
+        if (!snap) return <td key={q} />;
+
+        const isEmpty = snap.entryCount === 0;
+        const isPartial = snap.entryCount > 0 && !snap.isComplete;
+
+        return (
+          <td key={q} className="py-2 px-1">
+            <button
+              type="button"
+              onClick={() => onJumpToEntry(metric.metric_id, q)}
+              className={`w-full rounded-sm border p-2.5 text-center transition-all hover:shadow-sm ${
+                isEmpty
+                  ? "border-dashed border-wg-muted/30 bg-wg-light/50 hover:border-wg-orange/50"
+                  : isPartial
+                    ? "border-wg-orange/30 bg-wg-orange/5 hover:border-wg-orange"
+                    : "border-wg-suede/20 bg-wg-suede/5 hover:border-wg-suede"
+              }`}
+            >
+              <div className="flex justify-center mb-1">
+                {isEmpty ? (
+                  <Circle className="w-4 h-4 text-wg-muted/50" />
+                ) : isPartial ? (
+                  <CircleDashed className="w-4 h-4 text-wg-orange" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-wg-suede" />
+                )}
+              </div>
+              {isEmpty ? (
+                <span className="text-[10px] text-wg-muted">Missing</span>
+              ) : (
+                <>
+                  <p className="font-semibold text-wg-gold text-sm">
+                    {formatValue(snap.actual, metric.value_type)}
+                  </p>
+                  {snap.label && (
+                    <p className="text-[10px] text-wg-muted mt-0.5">
+                      {snap.label}
+                    </p>
+                  )}
+                  {snap.status && (
+                    <span
+                      className={`inline-block mt-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-sm border ${statusColor(snap.status)}`}
+                    >
+                      {statusLabel(snap.status)}
+                    </span>
+                  )}
+                </>
+              )}
+            </button>
+          </td>
+        );
+      })}
+    </tr>
   );
 }

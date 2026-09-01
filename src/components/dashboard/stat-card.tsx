@@ -12,18 +12,26 @@ interface StatCardProps {
 
 const variantStyles = {
   default: "from-wg-suede/5 to-wg-suede/10 border-wg-suede/10",
-  success: "from-emerald-50 to-emerald-100/40 border-emerald-200/50",
+  success: "from-green-50 to-green-100/40 border-green-200/50",
   warning: "from-amber-50 to-amber-100/40 border-amber-200/50",
-  danger: "from-rose-50 to-rose-100/40 border-rose-200/50",
+  danger: "from-red-50 to-red-100/40 border-red-200/50",
   muted: "from-white to-wg-light border-black/5",
 };
 
 const iconStyles = {
   default: "text-wg-suede bg-wg-suede/10",
-  success: "text-emerald-700 bg-emerald-100",
+  success: "text-green-700 bg-green-100",
   warning: "text-amber-700 bg-amber-100",
-  danger: "text-rose-700 bg-rose-100",
+  danger: "text-red-700 bg-red-100",
   muted: "text-wg-muted bg-wg-light",
+};
+
+const valueStyles = {
+  default: "text-wg-suede",
+  success: "text-green-700",
+  warning: "text-amber-700",
+  danger: "text-red-700",
+  muted: "text-wg-suede",
 };
 
 export function StatCard({
@@ -46,7 +54,7 @@ export function StatCard({
             <p className="text-[11px] font-medium text-wg-muted">
               {titleCase(label)}
             </p>
-            <p className="font-display text-3xl font-normal text-wg-suede mt-2">
+            <p className={cn("font-display text-3xl font-normal mt-2", valueStyles[variant])}>
               {value}
             </p>
             {subtitle && (

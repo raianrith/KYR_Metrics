@@ -1,20 +1,17 @@
 import type {
   CadenceType,
   DashboardStats,
-  EntryStatus,
   MetricDashboardRow,
   MetricEntry,
   Person,
   Team,
 } from "./types";
-import {
-  CADENCE_SECTION_ORDER,
-  getAnnualBucketsForYearComparison,
-  getMonthlyBucketsInRange,
-  getQuarterlyBucketsForYear,
-  resolveFilterRange,
-  type PeriodFilter,
-} from "./periods";
+import { CADENCE_SECTION_ORDER } from "./periods";
+
+export function calcOnTrackPercent(met: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.round((met / total) * 100);
+}
 
 export function computeStats(rows: MetricDashboardRow[]): DashboardStats {
   const totalMetrics = rows.length;
@@ -30,7 +27,25 @@ export function computeStats(rows: MetricDashboardRow[]): DashboardStats {
     (r) => !r.latest_status || r.latest_status === "pending"
   ).length;
 
-  return { totalMetrics, withData, met, atRisk, notMet, pending };
+  return {
+    totalMetrics,
+    withData,
+    met,
+    atRisk,
+    notMet,
+    pending,
+    onTrackPercent: calcOnTrackPercent(met, totalMetrics),
+  };
+}
+
+function sortGroupsByCatalogOrder(
+  groups: [string, MetricDashboardRow[]][]
+): [string, MetricDashboardRow[]][] {
+  return groups.sort((a, b) => {
+    const ao = Math.min(...a[1].map((r) => r.sort_order));
+    const bo = Math.min(...b[1].map((r) => r.sort_order));
+    return ao - bo;
+  });
 }
 
 export function groupByTeam(rows: MetricDashboardRow[]) {
@@ -41,6 +56,35 @@ export function groupByTeam(rows: MetricDashboardRow[]) {
     map.set(row.team, existing);
   }
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+}
+
+export function groupByRole(rows: MetricDashboardRow[]) {
+  const map = new Map<string, MetricDashboardRow[]>();
+  for (const row of rows) {
+    const key = row.role?.trim() ? row.role : "Unassigned";
+    const existing = map.get(key) ?? [];
+    existing.push(row);
+    map.set(key, existing);
+  }
+  return sortGroupsByCatalogOrder(Array.from(map.entries()));
+}
+
+export function groupByMetricName(rows: MetricDashboardRow[]) {
+  const map = new Map<string, MetricDashboardRow[]>();
+  for (const row of rows) {
+    const existing = map.get(row.metric_name) ?? [];
+    existing.push(row);
+    map.set(row.metric_name, existing);
+  }
+  return sortGroupsByCatalogOrder(Array.from(map.entries())).map(
+    ([name, metrics]) =>
+      [
+        name,
+        [...metrics].sort((a, b) =>
+          (a.owner ?? "").localeCompare(b.owner ?? "")
+        ),
+      ] as [string, MetricDashboardRow[]]
+  );
 }
 
 export function groupByEmployee(rows: MetricDashboardRow[]) {
@@ -142,6 +186,23 @@ export function filterMetricsByTier(
   return rows.filter((m) => normalizeTier(m.tier) === tier);
 }
 
+export function isTier3(tier: string | null | undefined): boolean {
+  return normalizeTier(tier) === "Tier 3";
+}
+
+export function partitionByTier3(rows: MetricDashboardRow[]): {
+  primary: MetricDashboardRow[];
+  tier3: MetricDashboardRow[];
+} {
+  const primary: MetricDashboardRow[] = [];
+  const tier3: MetricDashboardRow[] = [];
+  for (const row of rows) {
+    if (isTier3(row.tier)) tier3.push(row);
+    else primary.push(row);
+  }
+  return { primary, tier3 };
+}
+
 export function computeEntryStatus(
   actual: number,
   target: number | null,
@@ -202,98 +263,7 @@ export interface StatusBreakdownRow {
   notMet: number;
   pending: number;
   total: number;
-}
-
-export type PeriodStatusGranularity = "monthly" | "quarterly" | "yearly";
-
-export interface PeriodStatusRow {
-  label: string;
-  met: number;
-  onTrack: number;
-  atRisk: number;
-  notMet: number;
-  missing: number;
-  total: number;
-}
-
-const GRANULARITY_CADENCE: Record<PeriodStatusGranularity, CadenceType> = {
-  monthly: "monthly",
-  quarterly: "quarterly",
-  yearly: "annual",
-};
-
-function classifyEntryStatus(status: EntryStatus | null | undefined) {
-  if (!status || status === "pending") return "missing" as const;
-  switch (status) {
-    case "met":
-      return "met" as const;
-    case "on_track":
-      return "onTrack" as const;
-    case "at_risk":
-      return "atRisk" as const;
-    case "not_met":
-    case "off_track":
-      return "notMet" as const;
-    default:
-      return "missing" as const;
-  }
-}
-
-export function buildCadencePeriodStatus(
-  metrics: MetricDashboardRow[],
-  entriesByMetric: Record<string, MetricEntry[]>,
-  filter: PeriodFilter,
-  granularity: PeriodStatusGranularity
-): PeriodStatusRow[] {
-  const cadence = GRANULARITY_CADENCE[granularity];
-  const relevantMetrics = metrics.filter((m) => m.cadence === cadence);
-  const range = resolveFilterRange(filter);
-
-  const buckets =
-    granularity === "monthly"
-      ? getMonthlyBucketsInRange(range.start, range.end)
-      : granularity === "quarterly"
-        ? getQuarterlyBucketsForYear(range.year)
-        : getAnnualBucketsForYearComparison(range.year);
-
-  return buckets.map((bucket) => {
-    const counts = {
-      met: 0,
-      onTrack: 0,
-      atRisk: 0,
-      notMet: 0,
-      missing: 0,
-    };
-
-    for (const metric of relevantMetrics) {
-      const entries = entriesByMetric[metric.metric_id] ?? [];
-      const entry = entries.find(
-        (e) => e.period_end >= bucket.start && e.period_end <= bucket.end
-      );
-
-      if (!entry || entry.actual_value === null) {
-        counts.missing++;
-        continue;
-      }
-
-      const statusKey = classifyEntryStatus(entry.status);
-      counts[statusKey]++;
-    }
-
-    return {
-      label: bucket.label,
-      ...counts,
-      total: relevantMetrics.length,
-    };
-  });
-}
-
-export function countMetricsByCadence(
-  metrics: MetricDashboardRow[],
-  granularity: PeriodStatusGranularity
-): number {
-  return metrics.filter((m) => m.cadence === GRANULARITY_CADENCE[granularity])
-    .length;
+  onTrackPercent: number;
 }
 
 export function buildStatusBreakdown(
@@ -319,11 +289,15 @@ export function buildStatusBreakdown(
   }
 
   return Array.from(map.entries())
-    .map(([label, stats]) => ({
-      label,
-      ...stats,
-      total: stats.met + stats.atRisk + stats.notMet + stats.pending,
-    }))
+    .map(([label, stats]) => {
+      const total = stats.met + stats.atRisk + stats.notMet + stats.pending;
+      return {
+        label,
+        ...stats,
+        total,
+        onTrackPercent: calcOnTrackPercent(stats.met, total),
+      };
+    })
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 

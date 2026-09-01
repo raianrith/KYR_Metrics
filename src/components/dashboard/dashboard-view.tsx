@@ -1,7 +1,7 @@
 "use client";
 
 import { PeriodSelector, type PeriodView } from "@/components/dashboard/period-selector";
-import { ChartLegend, CadencePeriodStatusCharts, StatusSummary, TeamMemberOverviewChart, TeamOverviewChart } from "@/components/dashboard/charts";
+import { ChartLegend, StatusSummary, TeamOverviewChart } from "@/components/dashboard/charts";
 import {
   filterMetricsByScope,
   MetricsFilterBar,
@@ -206,7 +206,7 @@ export function DashboardView({
           <CardHeader>
             <CardTitle>Team Performance</CardTitle>
             <CardDescription>
-              Status breakdown by team · {periodLabel}
+              On-track % by team · {periodLabel}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -226,40 +226,11 @@ export function DashboardView({
               atRisk={stats.atRisk}
               notMet={stats.notMet}
               pending={stats.pending}
+              onTrackPercent={stats.onTrackPercent}
             />
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Team Member Performance</CardTitle>
-          <CardDescription>
-            Status breakdown by team member · {periodLabel}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TeamMemberOverviewChart rows={baseFilteredMetrics} />
-          <ChartLegend />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Status by Period</CardTitle>
-          <CardDescription>
-            How monthly, quarterly, and yearly metrics performed across each
-            period · {periodLabel}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CadencePeriodStatusCharts
-            metrics={baseFilteredMetrics}
-            entriesByMetric={entriesByMetric}
-            periodFilter={periodFilter}
-          />
-        </CardContent>
-      </Card>
 
       <div className="space-y-4">
         <MetricsFilterBar

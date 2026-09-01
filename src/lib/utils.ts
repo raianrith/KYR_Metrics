@@ -60,6 +60,23 @@ export function formatValue(
   }
 }
 
+export function formatTargetDisplay(metric: {
+  target_label?: string | null;
+  target_value?: number | null;
+  latest_target?: number | null;
+  value_type: string;
+  target_direction?: string | null;
+}): string {
+  const numeric = metric.latest_target ?? metric.target_value ?? null;
+  if (numeric !== null) {
+    const formatted = formatValue(numeric, metric.value_type);
+    if (metric.target_direction === "lower_is_better") return `≤ ${formatted}`;
+    if (metric.target_direction === "equals") return formatted;
+    return `≥ ${formatted}`;
+  }
+  return metric.target_label?.trim() || "—";
+}
+
 export function cadenceLabel(cadence: string): string {
   const labels: Record<string, string> = {
     monthly: "Monthly",
@@ -76,16 +93,23 @@ export const CADENCE_OPTIONS = [
   { value: "annual", label: "Yearly" },
 ] as const;
 
+export const STATUS_CHART_COLORS = {
+  met: "#16a34a",
+  atRisk: "#ff6700",
+  notMet: "#dc2626",
+  pending: "#d4d4d4",
+} as const;
+
 export function statusColor(status: string | null): string {
   switch (status) {
     case "met":
     case "on_track":
-      return "text-wg-suede bg-wg-suede/10 border-wg-suede/20";
+      return "text-green-800 bg-green-50 border-green-200";
     case "at_risk":
       return "text-wg-orange bg-wg-orange/10 border-wg-orange/20";
     case "not_met":
     case "off_track":
-      return "text-wg-gold bg-wg-gold/10 border-wg-gold/20";
+      return "text-red-800 bg-red-50 border-red-200";
     default:
       return "text-wg-muted bg-wg-light border-black/10";
   }
